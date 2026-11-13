@@ -1,0 +1,27 @@
+{
+    "data": {
+        "average_level": "아마추어3",
+        "grades": {
+            "rookie": {
+                "percentage": 9,
+                "label": "루키"
+            },
+            "beginner": {
+                "percentage": 9,
+                "label": "비기너"
+            },
+            "amateur": {
+                "percentage": 73,
+                "label": "아마추어"
+            },
+            "semipro": {
+                "percentage": 9,
+                "label": "세미프로"
+            },
+            "pro": {
+                "percentage": 0,
+                "label": "프로"
+            }
+        }
+    }
+}

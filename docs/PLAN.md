@@ -1,4 +1,4 @@
-# 매치레이더 (가칭) — 플랩풋볼 매치 도우미 개발 계획
+# 플랩레이더 — 플랩풋볼 매치 도우미 개발 계획 (개인용)
 
 > 주말마다 **원하는 구장 × 원하는 시간대**의 플랩 매치를 지켜보다가,
 > **평균 레벨과 참여 인원**이 내 레벨에 맞을 때 마감 전에 신청하게 도와주는 개인용 모바일 웹.
@@ -24,21 +24,28 @@
 
   ※ 실제 이름과 순서는 0단계에서 실제 데이터로 확정.
 
-### 1-3. 데이터 소스 (비공식 내부 API, 오픈소스 프로젝트 여럿이 쓰는 것을 확인)
-| 용도 | 엔드포인트 | 확인된 필드 |
+### 1-3. 데이터 소스 (✅ 2026-11-13 실제 호출로 확인, 로그인 불필요)
+
+예전 오픈소스들이 쓰던 `/api/v2/integrated-matches/`는 **404**. 현재 웹은 **v3 API**를 씀.
+응답 샘플은 `docs/samples/` 참고.
+
+| 용도 | 엔드포인트 | 핵심 필드 |
 |---|---|---|
-| 날짜별 매치 목록 | `GET https://www.plabfootball.com/api/v2/integrated-matches/?page_size=700&ordering=schedule&sch=YYYY-MM-DD&region={id}&sex={n}&hide_soldout=` | `id`, `schedule`, `confirm_cnt`(현재 인원), `max_player_cnt`(정원), `player_cnt`(몇 대 몇), `fee`, `apply_status` |
-| 매치 상세 | `GET https://www.plabfootball.com/api/v2/matches/{id}/` | 평균 레벨·레벨 분포가 여기 있을 가능성이 큼 (**확인 필요**) |
-| 구장 | `GET https://www.plabfootball.com/api/v2/stadium-groups/{id}` | 구장 정보 |
-| 신청 페이지 | `https://www.plabfootball.com/match/{id}/` | 딥링크 대상 |
+| 날짜별 목록 | `GET /api/v3/social-matches/?date=YYYY-MM-DD&page=1&page_size=50` | `id`, `time`(KST), `title`, `attributes.stadium_group`, `attributes.participants.label`("11/18"), `attributes.level`(레벨 조건), `attributes.gender`, `attributes.format`, `attributes.schedule`(UTC), `attributes.filter_area_id` |
+| 매치 상세 | `GET /api/v3/social-matches/{id}/` | `match.participants{confirm,max,min,female_count}`, `apply_status`(available/hurry/full), `applicant_progress.phase`(after_min 등), `lifecycle`, `schedule`, **`state_expires_at`(신청 마감)**, `stadium{id,group_id,area_id}`, `level_label`, `sex`, `pricing.final_fee`, `refresh_after_seconds` |
+| **레벨 그래프** | `GET /api/v3/social-matches/{id}/level-graph/` | **`average_level`("아마추어3")**, `grades.{rookie,beginner,amateur,semipro,pro}.percentage` |
+| 신청 페이지 | `https://www.plabfootball.com/match/{id}/` | 딥링크 |
 
-**아직 확인 못 한 것** (이 개발 컨테이너에서는 plabfootball.com 접속이 막혀 있었음):
-1. 평균 레벨 필드의 이름과 형태: 정수(“아마추어3”)인지, 소수인지, 레벨 분포가 오는지
-2. 참가자별 레벨이 공개되는지 (로그인 필요 여부)
-3. 신청 마감 시점: 경기 시작 몇 분 전인지, 마감 시각 필드가 있는지
-4. `region` / `sex` 코드값, 구장 id
+목록 필터 파라미터(웹 코드에서 확인): `date, time_after, gender, level, stadium_group_id, area_id, hide_soldout, show_closing_soon, match_format, lat/lng/radius, page, page_size`
+→ **`stadium_group_id`로 관심 구장만 바로 조회 가능**.
 
-→ **0단계에서 크롬 개발자도구(Network 탭)로 매치 상세 응답 JSON을 한 번 저장**하면 전부 확정됨.
+**확인된 사실**
+- 목록에는 평균 레벨이 없음 → 후보 매치마다 `level-graph` 1회 호출 필요
+- **신청 마감 = 경기 시작 10분 전** (`state_expires_at = schedule − 10분`, 4개 매치 모두 동일)
+- 레벨 분포는 **등급 그룹 비율(%)** 로 옴 → `round(n × % / 100)`으로 그룹별 인원 수 복원 가능 (예: 11명 중 9% = 1명)
+- 참가자 개인 목록·개인 레벨은 비로그인 응답에 없음
+- 2명(루키 1 + 아마 1) 매치의 평균이 "아마추어5" → **루키는 평균 계산에서 빠지는 것으로 보임** (데이터 더 쌓아서 확인)
+- `robots.txt`가 `/api/`를 검색엔진 크롤러에 Disallow → 개인용·저빈도로만 호출 (원칙 유지)
 
 ### 1-4. 제약 / 원칙
 - 공식 API가 아님 → 필드가 바뀔 수 있음. 파서는 방어적으로 짜고, 원본 JSON도 같이 저장.
@@ -60,7 +67,10 @@
 ### 2차
 4. **추이 차트**: 매치별 인원과 평균 레벨의 시간 변화
 5. **"높은 3 / 낮은 3" 추정** (아래 3장)
-6. **알림** (텔레그램 봇 추천, iOS 웹푸시는 홈 화면 설치가 필요해 번거로움)
+6. **알림** (채널은 추후 결정 — 후보: 카카오톡(나와의 채팅 제외), 웹푸시)
+   - 웹푸시: 무료·간단. 아이폰은 iOS 16.4+에서 홈 화면에 추가한 PWA만 가능
+   - 카카오톡: 알림톡은 사업자/대행사 필요 → 개인용으론 부적합.
+     대안은 **봇용 카카오 계정**으로 앱을 만들고 내 계정을 팀원으로 등록해 "친구에게 보내기" API 사용 (검수 없이 팀원에게 발송 가능 여부 확인 필요)
    - "토 12시 ○○구장: 9/12명, 평균 아마3(중상), 적합 🟢, 마감 3시간 전"
    - 조건: 적합도 진입, 마감 임박, 평균 레벨이 급변(고수 유입)
 
@@ -76,13 +86,16 @@
 
 **스냅샷이 쌓이면 이 구간이 좁아짐:**
 - 시점 t의 인원 nₜ, 표시 레벨 Lₜ → 레벨 합 Sₜ = μₜ·nₜ ∈ [nₜ(Lₜ−0.5), nₜ(Lₜ+0.5))
-- 한 명이 들어오면 Sₜ₊₁ = Sₜ + x (x는 새 참가자 레벨, 0~12 정수)
+- 한 명이 들어오면 Sₜ₊₁ = Sₜ + x (x는 새 참가자 레벨)
+- **level-graph의 그룹별 인원 변화로 새 참가자가 어느 그룹인지 알 수 있음** → x 범위가 크게 좁아짐
+  (예: 아마추어 그룹 +1 → x ∈ 아1~아5)
+- 그룹 인원 자체도 제약: 아마추어 k명이면 그 합은 [4k, 8k] 안
 - 시간 순으로 구간을 이어서 겹치는 부분만 남기면 현재 합 S의 범위가 좁아짐
   → 현재 평균의 범위 = "3.1~3.3 → **낮은 3**"
 - 표시 레벨이 바뀌는 순간(3→4로 넘어가는 인원)은 경계값을 직접 알려줘서 특히 정보량이 큼
 - 취소(인원 감소)도 같은 식으로 처리. 모순이 생기면 구간을 초기화하고 다시 시작.
 
-> 만약 상세 API가 **참가자별 레벨이나 분포**를 준다면 위 추정 없이 정확한 소수 평균을 바로 계산함. 0단계 결과로 결정.
+> 참가자별 레벨은 비로그인으로 안 보이므로 이 추정 방식으로 감. 모든 매치에 대해 같은 로직으로 계산하고, 초기에는 구간 폭(신뢰도)도 같이 표시.
 
 이걸 하려면 **인원이 바뀔 때마다 스냅샷을 놓치지 않는 것**이 중요 → 수집 주기 설계(4장)로 연결.
 
@@ -96,7 +109,7 @@
         ▼
    [Cloudflare D1 (SQLite)] <── [Worker API /api/*] <── [모바일 웹 (Pages, PWA)]
         │
-        └─> 텔레그램 봇 알림 (2차)
+        └─> 알림 (2차, 카카오톡 또는 웹푸시)
 ```
 
 - **이유**: 크론이 1분 단위로 안정적, 무료, 서버 관리 불필요, 같은 곳에서 프록시/API/정적 호스팅까지 처리
@@ -109,7 +122,7 @@
 | 3일 이상 | 1시간 (목록만) |
 | 1~3일 | 15분 |
 | 24시간 이내 | 5분 |
-| 3시간 이내 / 마감 임박 | 2분 |
+| 3시간 이내 / 마감(시작 10분 전) 임박 | 2분 |
 | 마감, 취소, 종료 | 중단 |
 
 - 목록 API 1회로 해당 날짜·지역 전체 인원을 받고, **관심 매치만** 상세 API 호출
@@ -119,7 +132,8 @@
 ```sql
 watch_rule(id, stadium_ids, weekdays, time_from, time_to, sex, my_level, tolerance)
 match(id PK, stadium_id, stadium_name, schedule, sex, level_rule, max_player_cnt, fee, url, first_seen, last_status)
-snapshot(match_id, ts, confirm_cnt, avg_level_raw, avg_level_num, apply_status, raw_json)
+snapshot(match_id, ts, confirm_cnt, avg_level_raw, avg_level_num, apply_status,
+         pct_rookie, pct_beginner, pct_amateur, pct_semipro, pct_pro, raw_json)
                        -- (match_id, ts) 인덱스
 level_estimate(match_id, ts, sum_lo, sum_hi, mean_lo, mean_hi)
 notification_log(match_id, kind, ts)   -- 같은 알림 중복 방지
@@ -145,11 +159,11 @@ score = 100 − 25·gap − (fill < 0.5 ? 15 : 0) − (마감임박 ? 0 : 0)
 
 | 단계 | 내용 | 산출물 | 예상 |
 |---|---|---|---|
-| **0. 데이터 확인** | 크롬 개발자도구로 목록/상세 JSON 수집, 레벨 필드·마감 규칙·지역 코드 확정, 관심 구장 id 확보 | `docs/api-notes.md`, 샘플 JSON | 0.5일 |
+| **0. 데이터 확인** ✅ | v3 API, level-graph, 마감 규칙(10분 전) 확인 | `docs/samples/` | 완료 |
 | **1. 수집기** | Worker 크론 + D1 스키마 + 파서 + 적응형 스케줄 | 스냅샷이 쌓이기 시작 | 1~2일 |
 | **2. MVP 웹** | 조건 설정, 후보 보드, 적합도 배지, 딥링크 | 주말에 실제 사용 | 2일 |
 | **3. 추이 + 추정** | 스냅샷 차트, "높은 3 / 낮은 3" 구간 추정 | 상세 화면 | 1~2일 |
-| **4. 알림** | 텔레그램 봇, 알림 규칙, 중복 방지 | 푸시 | 1일 |
+| **4. 알림** | 카카오톡 또는 웹푸시, 알림 규칙, 중복 방지 | 푸시 | 1일 |
 | **5. 통계/예측** | 구장·시간대 성향, 최종 레벨 예측 | 인사이트 탭 | 데이터 2~4주 쌓인 뒤 |
 
 **먼저 1단계 수집기를 빨리 띄우는 것이 중요**: 추이 데이터는 시간이 지나야만 쌓이므로 UI보다 먼저 돌려 둔다.
@@ -160,14 +174,14 @@ score = 100 − 25·gap − (fill < 0.5 ? 15 : 0) − (마감임박 ? 0 : 0)
 | 리스크 | 대응 |
 |---|---|
 | 비공식 API 변경/차단 | 원본 JSON 저장, 파서 실패 시 알림, 호출 빈도 최소화 |
-| 평균 레벨이 상세 API에 없음 (HTML에만 있음) | HTML 파싱으로 대체, 또는 로그인 쿠키 필요 여부 검토 |
-| 이용약관 | 개인용·저빈도·자동 신청 없음 유지, 공개 배포 시 재검토 |
+| 이미 v2 → v3로 바뀐 전례 있음 | 엔드포인트를 한 파일에 모아 두고 응답 스키마 검증 |
+| 이용약관 / robots.txt `/api/` Disallow | 나만 쓰는 용도·저빈도·자동 신청 없음 유지 |
 | 마감 직전 급변 | 3시간 이내 2분 주기 + 급변 알림 |
 
 ---
 
 ## 7. 결정이 필요한 것
-1. **관심 구장 목록 + 지역**, 시간 구간, 성별, 내 현재 레벨
+1. **관심 구장 목록**, 시간 구간, 성별, 내 현재 레벨
 2. 호스팅: Cloudflare(추천) / Supabase / 집 PC
-3. 알림 채널: 텔레그램(추천) / 웹푸시 / 없음
-4. 이름: **매치레이더**(추천), 레벨핏, 킥오프 스카우트, 오늘의 매치
+3. 알림 채널: 카카오톡 vs 웹푸시 (추후)
+4. ~~이름~~ → **플랩레이더** 확정 (개인용)

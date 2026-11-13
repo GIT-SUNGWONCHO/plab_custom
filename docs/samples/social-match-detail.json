@@ -1,0 +1,167 @@
+{
+    "data": {
+        "server_time": "2026-11-13T01:10:46.855868+00:00",
+        "refresh_after_seconds": 10,
+        "cache_control": {
+            "scope": "private",
+            "max_age_seconds": 10,
+            "revalidate": "on_focus"
+        },
+        "view_count": null,
+        "match": {
+            "id": 1134792,
+            "type": "3teams",
+            "layout": {
+                "code": "STANDARD",
+                "sections": [
+                    "hero",
+                    "status",
+                    "apply",
+                    "level",
+                    "participants",
+                    "info",
+                    "rules",
+                    "faq"
+                ]
+            },
+            "lifecycle": "CLOSING_SOON",
+            "is_favorite_available": true,
+            "state_expires_at": "2026-11-13T22:50:00+00:00",
+            "schedule": "2026-11-13T23:00:00+00:00",
+            "available_day": null,
+            "title": "인천 인하대 풋살파크 D구장",
+            "label_title": "2026년 11월 14일 토요일 08:00 인천 인하대 풋살파크",
+            "stadium": {
+                "id": 12799,
+                "group_id": 3764,
+                "name": "인천 인하대 풋살파크",
+                "address": "인천광역시 인하로 100 인하대학교",
+                "lat": 37.451482,
+                "lng": 126.651351,
+                "parking": "주차 등록: 사무실 안 테블릿 셀프 등록\n주차 비용: 4시간 500원\n연타임 : 출차 및 재입차 후 테블릿에 재등록\n사무실비번 : 5425*",
+                "facilities": [
+                    "주차장",
+                    "풋살화 대여"
+                ],
+                "is_parking": true,
+                "is_parking_free": false,
+                "parking_fee": "사무실 테블릿 등록 - 4시간_500원",
+                "parking_cnt": 0,
+                "is_parking_apply": false,
+                "is_shower": false,
+                "is_shoes": true,
+                "shoes_memo": "사무실 방문 필요합니다. (유료)",
+                "is_beverage": true,
+                "beverage_memo": "사무실 방문 필요합니다. (유료)",
+                "is_toilet": 2,
+                "toilet_memo": "A구장 & D구장  정면 학교건물 화장실 이용(23:59까지가능/평일)\n\n주말은 인하대역 화장실이용\n(학교 출입카드 수령 후 학교 화장실 이용가능)",
+                "is_laundry": true,
+                "is_smoking_warning": false,
+                "stadium_intro": "■ 찾아가는 길: 인천광역시 인하로 100 인하대학교 대운동장 옆\r\n\r\n■ 주차: 할인권(4시간 500원) 계좌이체 후 사무실에 비치된 태블릿으로 주차등록 부탁드립니다. 연타임의 경우 출차 및 재입차 후 테블릿에 재등록.\r\n\r\n\r\n■ 흡연: 지정된 흡연 구역에서만 흡연\r\n-B구장 앞 재떨이 부근만 가능\r\n-D구장 앞 재떨이 부근만 가능\r\n\r\n■ 대여/판매: 사무실 방문 필요합니다. (유료) \r\n-풋살화\r\n-조끼\r\n-공\r\n*우천 시 대여 불가 \r\n\r\n■ 화장실\r\n-A구장 정면 학교건물 화장실 이용(23:59까지가능)\r\n*주말은 건물출입카드 터치 후 입장\r\n-매니저님에게 출입카드 2장 제공",
+                "size": "40m x 20m",
+                "area_group": "인천",
+                "area": "미추홀구",
+                "area_id": 29
+            },
+            "images": [
+                {
+                    "url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385_01.jpg",
+                    "mobile_url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385_01.jpg?w=1920"
+                },
+                {
+                    "url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385_02.jpg",
+                    "mobile_url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385_02.jpg?w=1920"
+                },
+                {
+                    "url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385.jpg",
+                    "mobile_url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385.jpg?w=1920"
+                }
+            ],
+            "format": "6 vs 6",
+            "level_label": "모든 레벨",
+            "level_code": 0,
+            "sex": 0,
+            "manager": {
+                "id": 0,
+                "name": "(masked)"
+            },
+            "is_excellent_manager": false,
+            "intro": "",
+            "notice": "",
+            "stud": "TF",
+            "playtime_label": "2시간",
+            "duration_minute": 120,
+            "pricing": {
+                "base_fee": 10000,
+                "discount_amount": 0,
+                "final_fee": 10000,
+                "original_fee": 10000,
+                "promo_code": null,
+                "promo_label": null,
+                "sale_label": null,
+                "discount_badges": [],
+                "alternatives": []
+            },
+            "participants": {
+                "confirm": 11,
+                "max": 18,
+                "min": 10,
+                "female_count": 0
+            },
+            "favorite_count": 2,
+            "vacancy_notification_count": 0,
+            "applicant_progress": {
+                "phase": "after_min",
+                "remaining": 7,
+                "gauge": {
+                    "value": 11,
+                    "max": 18
+                }
+            },
+            "apply_status": "hurry",
+            "is_super_sub": false,
+            "is_manager_free": false,
+            "is_earlybird": false,
+            "earlybird_grade": null,
+            "downloadable_coupon": null,
+            "friends": null,
+            "alerts": [
+                {
+                    "type": "WEATHER_SAFETY",
+                    "icon": null,
+                    "text": "기상 악화로 인한 매치 취소 시 100% 환불됩니다."
+                }
+            ],
+            "cancellation_policy": {
+                "label": "매치 시작 90분 전까지 100% 환불",
+                "free_cancel_deadline_at": "2026-11-13T21:30:00+00:00"
+            },
+            "report": {
+                "is_available": false,
+                "type": null,
+                "url": null
+            },
+            "features": [],
+            "badges": [
+                {
+                    "code": "hurry",
+                    "label": "마감임박",
+                    "style": {
+                        "text_color": "#FF5880",
+                        "background_color": "#FFECF0"
+                    }
+                }
+            ],
+            "is_plaber_match": false,
+            "league_id": 0,
+            "share": {
+                "url": "https://plabfootball.com/s/3bGtP6veZ7rUWRhW/",
+                "image_url": "https://dec060oomq9vl.cloudfront.net/media/KakaoTalk_20250723_113108385_01.jpg?w=1920"
+            },
+            "weather_safety_rule": null,
+            "is_bad_weather": false
+        },
+        "viewer": null,
+        "status_message": null
+    }
+}

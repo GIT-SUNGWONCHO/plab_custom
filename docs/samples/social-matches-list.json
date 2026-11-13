@@ -1,0 +1,134 @@
+{
+ "data": {
+  "count": 1695,
+  "next": "https://social-backend.plabfootball.com/social-matches?date=2026-11-14&page_size=50&page=2",
+  "previous": null,
+  "results": [
+   {
+    "id": 1068921,
+    "time": "01:00",
+    "title": "용인 기흥 낫소 풋살파크 투지구장",
+    "attributes": {
+     "area_group": "경기",
+     "area": "용인시",
+     "area_label": "경기 용인",
+     "stadium_group": "용인 기흥 낫소 풋살파크",
+     "stadium": "투지구장",
+     "awning": false,
+     "is_new_stadium": false,
+     "image_url": "https://dec060oomq9vl.cloudfront.net/media/mobile/20211202_194803.webp",
+     "format": "6vs6",
+     "level": "일반",
+     "level_code": 0,
+     "participants": {
+      "label": "2/18",
+      "percentage": 11,
+      "color": "#5EC868"
+     },
+     "parking": null,
+     "view_count": null,
+     "features": [
+      {
+       "code": "screen",
+       "label": "스크린",
+       "style": {
+        "text_color": "#5EC868"
+       }
+      }
+     ],
+     "favorite_count": 1,
+     "is_favorite": false,
+     "is_favorite_available": true,
+     "applied_friends": null,
+     "gender": null,
+     "earlybird_discount_amount": null,
+     "available_day_display": null,
+     "filter_area_id": 35,
+     "schedule": "2026-11-13T16:00:00+00:00",
+     "boost_count": 0,
+     "boost_top_comment": null,
+     "distance_km": null
+    },
+    "badges": []
+   },
+   {
+    "id": 1100840,
+    "time": "01:00",
+    "title": "서울 노원 RFC 실내 축구센터 단일구장",
+    "attributes": {
+     "area_group": "서울",
+     "area": "노원구",
+     "area_label": "서울 노원",
+     "stadium_group": "서울 노원 RFC 실내 축구센터",
+     "stadium": "단일구장",
+     "awning": false,
+     "is_new_stadium": false,
+     "image_url": "https://dec060oomq9vl.cloudfront.net/media/mobile/KakaoTalk_20260707_001248251_02.webp",
+     "format": "6vs6",
+     "level": "일반",
+     "level_code": 0,
+     "participants": {
+      "label": "2/18",
+      "percentage": 11,
+      "color": "#5EC868"
+     },
+     "parking": null,
+     "view_count": null,
+     "features": [],
+     "favorite_count": 1,
+     "is_favorite": false,
+     "is_favorite_available": true,
+     "applied_friends": null,
+     "gender": null,
+     "earlybird_discount_amount": null,
+     "available_day_display": null,
+     "filter_area_id": 2,
+     "schedule": "2026-11-13T16:00:00+00:00",
+     "boost_count": 0,
+     "boost_top_comment": null,
+     "distance_km": null
+    },
+    "badges": []
+   },
+   {
+    "id": 1083750,
+    "time": "02:00",
+    "title": "용인 기흥 파라 풋살파크 기흥동탄점 단일구장",
+    "attributes": {
+     "area_group": "경기",
+     "area": "용인시",
+     "area_label": "경기 용인",
+     "stadium_group": "용인 기흥 파라 풋살파크 기흥동탄점",
+     "stadium": "단일구장",
+     "awning": false,
+     "is_new_stadium": false,
+     "image_url": "https://dec060oomq9vl.cloudfront.net/media/mobile/KakaoTalk_Photo_2025-06-19-09-53-33_001.webp",
+     "format": "6vs6",
+     "level": "일반",
+     "level_code": 0,
+     "participants": {
+      "label": "2/18",
+      "percentage": 11,
+      "color": "#5EC868"
+     },
+     "parking": null,
+     "view_count": null,
+     "features": [],
+     "favorite_count": 1,
+     "is_favorite": false,
+     "is_favorite_available": true,
+     "applied_friends": null,
+     "gender": null,
+     "earlybird_discount_amount": null,
+     "available_day_display": null,
+     "filter_area_id": 35,
+     "schedule": "2026-11-13T17:00:00+00:00",
+     "boost_count": 0,
+     "boost_top_comment": null,
+     "distance_km": null
+    },
+    "badges": []
+   }
+  ]
+ }
+}
