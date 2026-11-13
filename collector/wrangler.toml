@@ -10,8 +10,7 @@ crons = ["* * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "plab-radar"
-# `wrangler d1 create plab-radar` 결과로 나온 id로 바꿔 넣기
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "89a05da1-8e8d-4d74-a609-af14aedeebf8"
 migrations_dir = "migrations"
 
 [observability]
