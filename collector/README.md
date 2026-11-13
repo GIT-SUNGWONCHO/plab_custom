@@ -94,4 +94,8 @@ node scripts/local-run.ts show
 
 ## 주의
 - 비공식 API. 응답 형태가 바뀌면 파서가 `PlabSchemaError`를 내고 `run_log.errors`에 남음.
-- 플랩 CDN(CloudFront)이 HTTP 클라이언트에 따라 403을 줌 (curl·Python은 통과, Node fetch는 차단 확인). **Workers의 fetch가 통과하는지는 배포 후 `/api/run`으로 꼭 확인.**
+- 플랩 CDN(CloudFront)이 HTTP 클라이언트에 따라 403을 줌 (curl·Python은 통과, Node fetch는 차단). **Cloudflare Workers의 fetch는 통과 확인 (2026-11-13 배포).**
+
+## 배포 현황
+- Worker: `https://plab-radar.oroloov.workers.dev` (크론 매분)
+- D1: `plab-radar` (APAC)
