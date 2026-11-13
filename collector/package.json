@@ -1,0 +1,20 @@
+{
+  "name": "plab-radar-collector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply plab-radar --local",
+    "db:migrate:remote": "wrangler d1 migrations apply plab-radar --remote",
+    "typecheck": "tsc --noEmit",
+    "test": "node --no-warnings --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261113.1",
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.161.0"
+  }
+}

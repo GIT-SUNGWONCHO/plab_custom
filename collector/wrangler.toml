@@ -1,0 +1,18 @@
+name = "plab-radar"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 매분 실행. 실제로 무엇을 가져올지는 src/schedule.ts의 적응형 주기가 결정.
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "plab-radar"
+# `wrangler d1 create plab-radar` 결과로 나온 id로 바꿔 넣기
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true
