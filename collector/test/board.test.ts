@@ -30,10 +30,10 @@ test("루키는 평균에서 빠짐", () => {
 
 test("평균이 3→4로 바뀌는 순간 = 3과 4의 경계 근처라는 정보", () => {
   // 아마추어 10명 평균 아마3 (합 55~65) → 아마추어 1명 추가 후 아마4 (평균 ≥ 6.5 → 합 ≥ 71.5)
-  // 새 사람은 최대 8 → 이전 합 ≥ 63.5, 이후 합 ∈ [71.5, 73]
+  // 새 사람은 최대 8 → 이전 합 ≥ 64(정수), 이후 합 ∈ [72, 73]
   const e = estimateLevel([snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 })])!;
   assert.equal(e.labelNum, 7);
-  assert.ok(Math.abs(e.lo - 71.5 / 11) < 1e-6, `lo=${e.lo}`);
+  assert.ok(Math.abs(e.lo - 72 / 11) < 1e-6, `lo=${e.lo}`); // 합은 정수라 71.5 → 72
   assert.ok(e.hi <= 73 / 11 + 1e-6, `hi=${e.hi}`);
   const b = levelBucket(e);
   assert.equal(b.tier, "low"); // 아마4 중 낮은 편
@@ -160,4 +160,11 @@ test("신청 마감 시각이 지난 매치는 '마감'으로 (수집이 멈춰 
   const after = buildBoard([r], new Map(), F, Date.parse("2026-11-22T02:51:00Z"))[0];
   assert.deepEqual([before.full, before.closingSoon], [false, true]);
   assert.deepEqual([after.full, after.closingSoon], [true, false]);
+});
+
+test("레벨 합은 정수: 1명 평균 아마1이면 정확히 아마1 (높은 쪽 아님)", () => {
+  const e = estimateLevel([snap("아마추어1", { a: 1 })])!;
+  assert.equal(e.lo, 4);
+  assert.equal(e.hi, 4);
+  assert.equal(levelBucket(e).tier, "mid");
 });

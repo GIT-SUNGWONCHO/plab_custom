@@ -36,6 +36,8 @@ export interface Estimate {
 
 type Counts = Record<(typeof RATED)[number], number>;
 
+const intRange = (lo: number, hi: number): [number, number] => [Math.ceil(lo - EPS), Math.floor(hi + EPS)];
+
 function counts(s: SnapLevel): Counts | null {
   const n = s.confirm ?? 0;
   if (n <= 0) return null;
@@ -65,7 +67,8 @@ export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
     // 이번 스냅샷만으로 알 수 있는 범위: 등급 구성 ∩ 반올림된 평균
     const gLo = RATED.reduce((t, g) => t + c[g] * GRADE_RANGES[g][0], 0);
     const gHi = RATED.reduce((t, g) => t + c[g] * GRADE_RANGES[g][1], 0);
-    const cur: [number, number] = [Math.max(gLo, rated * (L - 0.5)), Math.min(gHi, rated * (L + 0.5) - EPS)];
+    // 레벨은 정수라 합도 정수 → 범위를 정수로 좁힘 (예: 1명 평균 아마1이면 합은 정확히 4)
+    const cur = intRange(Math.max(gLo, rated * (L - 0.5)), Math.min(gHi, rated * (L + 0.5) - EPS));
 
     let next = cur;
     if (sum && prev) {
@@ -78,7 +81,8 @@ export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
         else if (d < 0) { dLo += d * hi; dHi += d * lo; }
       }
       const carried: [number, number] = [Math.max(cur[0], sum[0] + dLo), Math.min(cur[1], sum[1] + dHi)];
-      if (carried[0] <= carried[1]) next = carried; // 모순이면 이번 스냅샷 기준으로 재시작
+      const c2 = intRange(carried[0], carried[1]);
+      if (c2[0] <= c2[1]) next = c2; // 모순이면 이번 스냅샷 기준으로 재시작
     }
     if (next[0] > next[1]) { sum = null; prev = null; last = null; continue; }
     sum = next;
