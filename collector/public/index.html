@@ -89,7 +89,6 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .badge.ai { background: var(--blue); color: #ffffff }
 .lv { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 13px }
 .lv > * { white-space: nowrap }
-.rel { font-size: 12px; color: var(--fg-3) }
 .lv .k { font-size: 12px; color: var(--fg-3) }
 .lv b { font-weight: 700 }
 .lvname { font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: -2px }
@@ -184,8 +183,7 @@ function levelHtml(it) {
   // 초록: 내 레벨보다 낮거나, 내 레벨과 같은데 높은 쪽이 아닌 매치만
   const good = e.labelNum < prefs.my || (e.labelNum === prefs.my && !(e.narrowed && e.tier === "high"));
 
-  const rel = e.labelNum < prefs.my ? "나보다 낮음" : e.labelNum > prefs.my ? "나보다 높음" : "";
-  return `<div class="lv"><span class="k">평균</span><b class="lvname${good ? " good" : ""}">${esc(L)}</b><span class="tier">${text}</span>${rel ? `<span class="rel">${rel}</span>` : ""}</div>`;
+  return `<div class="lv"><span class="k">평균</span><b class="lvname${good ? " good" : ""}">${esc(L)}</b><span class="tier">${text}</span></div>`;
 }
 function rowHtml(it) {
   const status = it.full ? ["full", "마감"] : it.applyStatus === "hurry" ? ["hurry", "마감임박"] : ["available", "신청가능"];
