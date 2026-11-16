@@ -95,12 +95,16 @@ export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
 export type Tier = "low" | "mid" | "high";
 
 /**
- * 정렬용 칸: 각 레벨을 낮은/중간/높은 세 칸으로 나눈 번호. 작을수록 낮은 레벨.
- * 구간의 가운데 값으로 판단. 구간이 레벨 하나만큼 넓으면(정보 없음) 가운데 = 중간 칸.
+ * 정렬용 칸: 각 레벨을 낮은/중간/높은 세 칸으로 나눈 번호. 작을수록 낮은 레벨. (구간 가운데 값 기준)
+ * 화면 표시(tier, narrowed): 표시 레벨의 정중앙(예: 아마3 = 6.0)과 비교해서 확실할 때만 말함
+ *   high: 구간 전체가 정중앙보다 위 / low: 전체가 아래 / mid: 정중앙 ±0.1 안 / 그 밖엔 모름
  */
 export function levelBucket(e: Estimate): { bucket: number; tier: Tier; narrowed: boolean } {
   const mid = (e.lo + e.hi) / 2;
   const bucket = Math.floor((mid + 0.5) * 3 + EPS);
-  const tier: Tier = (["low", "mid", "high"] as const)[((bucket % 3) + 3) % 3];
-  return { bucket, tier, narrowed: e.hi - e.lo < 0.99 };
+  const c = e.labelNum;
+  if (e.lo > c + EPS) return { bucket, tier: "high", narrowed: true };
+  if (e.hi < c - EPS) return { bucket, tier: "low", narrowed: true };
+  if (e.lo >= c - 0.1 - EPS && e.hi <= c + 0.1 + EPS) return { bucket, tier: "mid", narrowed: true };
+  return { bucket, tier: "mid", narrowed: false };
 }
