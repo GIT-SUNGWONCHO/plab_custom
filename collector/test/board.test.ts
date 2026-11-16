@@ -92,7 +92,7 @@ test("거르기: 날짜·시간대, 레벨 제한 매치, 여자 매치", () => 
   assert.deepEqual(ids, [1, 3, 9, 10]);
 });
 
-test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나머지는 마감임박 → 레벨 칸 → 6vs6 → 10명 이상 → 시각, 마감은 맨 아래", () => {
+test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나머지는 마감임박 → 레벨 칸 → 6vs6 → 10명 이상 → 시각", () => {
   const S = new Map<number, SnapLevel[]>([
     [1, [snap("아마추어3", { a: 10 })]], // 아마3 중간, 6vs6
     [2, [snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 }), snap("아마추어3", { a: 10 })]], // 높은 3
@@ -117,8 +117,9 @@ test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나�
   ];
   // 내 레벨(아마3) 이하 먼저: 3(아마2) → 아마3 중간들(6vs6 먼저, AI리포트는 무관) → 높은 3(2) → 추정 없음(8) → 마감(7)
   const board = buildBoard(rows, S, F);
-  // 초록 그룹(3,9,4,1,5,6)은 시작 시각 순: 9(11:00) → 3·4·5·6(12:00, 다음 기준) → 1(13:00)
-  assert.deepEqual(board.map((x) => x.id), [9, 3, 4, 5, 6, 1, 2, 8, 7]);
+  // 초록 그룹(3,9,4,7,1,5,6)은 시작 시각 순: 9(11:00) → 12:00끼리는 다음 기준 → 1(13:00)
+  // 마감(7)도 맨 아래로 빼지 않고 같은 규칙으로 섞임 (화면에서 기본은 '마감 제외')
+  assert.deepEqual(board.map((x) => x.id), [9, 3, 4, 7, 5, 6, 1, 2, 8]);
   assert.equal(board.find((x) => x.id === 2)!.atOrBelowMine, false); // 아마3 중 높은 쪽
   assert.equal(board.find((x) => x.id === 9)!.atOrBelowMine, true);
 
@@ -127,7 +128,7 @@ test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나�
   rows.find((r) => r.id === 6)!.confirm = 16; // 아마3 중간, 5vs5
   rows.find((r) => r.id === 1)!.apply_status = "hurry"; // 플랩 hurry(6명+)는 무시
   const b2 = buildBoard(rows, S, F);
-  assert.deepEqual(b2.map((x) => x.id), [6, 9, 3, 4, 5, 1, 2, 8, 7]);
+  assert.deepEqual(b2.map((x) => x.id), [6, 9, 3, 4, 7, 5, 1, 2, 8]);
 
   // 내 레벨을 아마4로 바꾸면 높은 3(2번)도 우선 그룹 → 마감임박끼리 레벨 낮은 6번 다음 2번
   assert.deepEqual(buildBoard(rows, S, { ...F, myLevel: 7 }).map((x) => x.id).slice(0, 2), [6, 2]);

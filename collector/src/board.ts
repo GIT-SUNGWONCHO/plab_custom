@@ -9,7 +9,7 @@
 // 3. 같은 칸이면 6vs6 먼저 (AI리포트는 정렬에 안 씀 — 화면에서 필터로)
 // 4. 그다음 신청 인원 10명 미만은 아래로
 // 5. 그래도 같으면 경기 시작이 빠른 순
-// 마감된 매치는 맨 아래 (빈자리가 날 수 있어 목록엔 남김)
+// 마감된 매치도 같은 규칙으로 정렬 (화면에서 기본은 '마감 제외')
 
 import { estimateLevel, levelBucket, type Estimate, type SnapLevel, type Tier } from "./estimate.ts";
 import { matchUrl } from "./plab.ts";
@@ -118,7 +118,6 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
 
   return items.sort(
     (a, b) =>
-      Number(a.full) - Number(b.full) ||
       Number(b.atOrBelowMine) - Number(a.atOrBelowMine) ||
       Number(b.closingSoon) - Number(a.closingSoon) ||
       (a.atOrBelowMine ? a.time.localeCompare(b.time) : 0) ||

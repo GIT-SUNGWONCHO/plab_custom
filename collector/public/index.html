@@ -133,8 +133,12 @@ const short = (l) => (l || "").replace("아마추어", "아마").replace("세미
 const WD = ["일","월","화","수","목","금","토"];
 const KEY = "plab-radar-board-v1";
 // my: 내 레벨 (초록 표시 기준, 아마3 = 6)
-let prefs = { from: "10:00", to: "17:00", date: "", my: 6, sort: "rec", aiOnly: false, hideFull: false };
-try { Object.assign(prefs, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
+let prefs = { v: 2, from: "10:00", to: "17:00", date: "", my: 6, sort: "rec", aiOnly: false, hideFull: true };
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+  if (!saved.v) delete saved.hideFull; // v2부터 '마감 제외'가 기본값
+  Object.assign(prefs, saved, { v: 2 });
+} catch (e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) {} };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -218,21 +222,19 @@ function render(data) {
   const items = prefs.sort === "time"
     ? [...base].sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title))
     : base;
-  const open = items.filter((x) => !x.full), full = items.filter((x) => x.full);
   if (!items.length) { $("main").innerHTML = HELP + `<p class="empty">이 날짜·시간대에 조건에 맞는 매치가 없어요.</p>`; const h0 = $("help"); h0.open = helpOpen; h0.ontoggle = () => { helpOpen = h0.open; }; return; }
   $("main").innerHTML =
     HELP +
-    (open.length ? `<ul class="list">${open.map(rowHtml).join("")}</ul>` : `<p class="empty">신청 가능한 매치가 없어요.</p>`) +
-    (full.length ? `<div class="section">마감 ${full.length}</div><ul class="list">${full.map(rowHtml).join("")}</ul>` : "");
+    `<ul class="list">${items.map(rowHtml).join("")}</ul>`;
   const h = $("help"); h.open = helpOpen; h.ontoggle = () => { helpOpen = h.open; };
 }
 let helpOpen = false;
 
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
-  <p><b>추천순</b> 평균 아마3 이하(초록) 먼저, 그 안은 마감임박 → 이른 시각 순. 나머지는 마감임박 → 평균 레벨 낮은 순 → 6vs6 → 신청 10명 이상 → 이른 시각. 마감된 매치는 맨 아래.</p>
+  <p><b>추천순</b> 평균 아마3 이하(초록) 먼저, 그 안은 마감임박 → 이른 시각 순. 나머지는 마감임박 → 평균 레벨 낮은 순 → 6vs6 → 신청 10명 이상 → 이른 시각.</p>
   <p><b>AI리포트 버튼</b> 누르면 AI리포트 매치만 보여요.</p>
-  <p><b>마감 제외 버튼</b> 누르면 마감된 매치를 숨겨요. 다시 누르면 다시 보여요.</p>
-  <p><b>시간순</b> 시작 시각 순. 마감된 매치는 맨 아래.</p>
+  <p><b>마감 제외 버튼</b> 기본으로 켜져 있어 마감된 매치를 숨겨요. 끄면 마감 매치도 같은 순서 안에 섞여 보여요.</p>
+  <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
   <p><b>아마3 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이.</p>
   <p><b>▲ ● ▼</b> 그 2.5~3.5 안에서 실제 평균이 높은 쪽 / 가운데 / 낮은 쪽이라는 추정.
