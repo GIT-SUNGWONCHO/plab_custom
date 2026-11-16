@@ -52,11 +52,12 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .date[aria-pressed="true"] { background: var(--black) }
 .date[aria-pressed="true"] b, .date[aria-pressed="true"] span { color: var(--on-black) }
 
-.filters { display: flex; justify-content: space-between; gap: 2px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
+.filters { display: flex; gap: 3px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
 .filters::-webkit-scrollbar { display: none }
 .pill { display: inline-flex; align-items: center; gap: 1px; height: 28px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--surface); font-size: 12px; color: var(--fg-3); white-space: nowrap; flex: none }
 .pill { cursor: pointer }
+.filters > .pill { flex: 1 1 auto; justify-content: center }
 .pill.toggle { appearance: none; font: inherit; font-size: 11.5px; font-weight: 500; letter-spacing: -0.02em; padding: 0 5.5px; color: var(--fg-3) }
 .pill.toggle[aria-pressed="true"] { background: var(--blue-soft); border-color: var(--blue); color: var(--blue) }
 .pill .tilde { margin: 0 }
