@@ -94,12 +94,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .lv .k { font-size: 12px; color: var(--fg-3) }
 .lv b { font-weight: 700 }
 .tier { font-size: 12px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: var(--muted); color: var(--fg-2) }
-.tier.low { background: var(--brand-soft); color: var(--brand-text) }
-.tier.high { background: var(--red-soft); color: var(--red) }
-.gauge { position: relative; width: 54px; height: 6px; border-radius: 3px; background: var(--muted); overflow: hidden; flex: none }
-.gauge::before, .gauge::after { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border) }
-.gauge::before { left: 33.33% } .gauge::after { left: 66.66% }
-.gauge i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--fg) }
+.tier.good { background: var(--brand-soft); color: var(--brand-text) }
 .ppl { font-size: 13px; color: var(--fg-3); font-variant-numeric: tabular-nums }
 .ppl.thin { color: var(--red) }
 .status { text-align: center; min-width: 72px; height: 34px; line-height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap }
@@ -182,18 +177,16 @@ function renderDates(dates) {
   const sel = $("dates").querySelector('[aria-pressed="true"]'); if (sel) sel.scrollIntoView({ inline: "center", block: "nearest" });
 }
 
-function gauge(e) {
-  const base = e.labelNum - 0.5;
-  const l = Math.max(0, (e.lo - base) * 100), r = Math.min(100, (e.hi - base) * 100);
-  return `<span class="gauge" aria-hidden="true"><i style="left:${l.toFixed(1)}%;width:${Math.max(4, r - l).toFixed(1)}%"></i></span>`;
-}
 function levelHtml(it) {
   const e = it.estimate;
   if (!e) return `<div class="lv"><span class="k">평균</span><span class="tier">아직 없음</span></div>`;
   const L = short(e.label);
-  const tier = !e.narrowed ? ["mid", `${L} 안 위치 모름`] : { low: ["low", `${L} 중 낮은 쪽`], mid: ["mid", `${L} 중 가운데`], high: ["high", `${L} 중 높은 쪽`] }[e.tier];
+  const text = !e.narrowed ? "위치 모름" : { low: "낮은 쪽", mid: "가운데", high: "높은 쪽" }[e.tier];
+  // 초록: 내 레벨보다 낮거나, 내 레벨과 같은데 높은 쪽이 아닌 매치만
+  const good = e.labelNum < prefs.my || (e.labelNum === prefs.my && !(e.narrowed && e.tier === "high"));
+  const tier = [good ? "good" : "", text];
   const rel = e.labelNum < prefs.my ? "나보다 낮음" : e.labelNum > prefs.my ? "나보다 높음" : "";
-  return `<div class="lv"><span class="k">평균</span><b>${esc(L)}</b>${gauge(e)}<span class="tier ${tier[0]}">${tier[1]}</span>${rel ? `<span class="rel">${rel}</span>` : ""}</div>`;
+  return `<div class="lv"><span class="k">평균</span><b>${esc(L)}</b><span class="tier ${tier[0]}">${tier[1]}</span>${rel ? `<span class="rel">${rel}</span>` : ""}</div>`;
 }
 function rowHtml(it) {
   const status = it.full ? ["full", "마감"] : it.applyStatus === "hurry" ? ["hurry", "마감임박"] : ["available", "신청가능"];
@@ -208,7 +201,7 @@ function rowHtml(it) {
       <div class="title">${esc(it.title)}</div>
       <div class="tags">${tags}</div>
       ${levelHtml(it)}
-      <div class="ppl${it.enoughPlayers ? "" : " thin"}">신청 ${it.confirm}/${it.max ?? "?"}명${it.enoughPlayers ? "" : " · 10명 미만이라 평균이 아직 잘 바뀌어요"}</div>
+      <div class="ppl${it.enoughPlayers ? "" : " thin"}">신청 ${it.confirm}/${it.max ?? "?"}명${it.enoughPlayers ? "" : " · 평균 변동 큼"}</div>
     </div>
     <div class="status ${status[0]}">${status[1]}</div></a></li>`;
 }
@@ -229,10 +222,11 @@ let helpOpen = false;
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
   <p><b>정렬 순서</b> 마감임박 → 평균 레벨 낮은 순 → 6vs6·AI리포트 → 신청 10명 이상 → 이른 시각. 마감된 매치는 맨 아래.</p>
   <p><b>평균 아마3</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이.</p>
-  <p><b>막대 · 아마3 중 낮은 쪽 / 가운데 / 높은 쪽</b> 그 2.5~3.5 안에서 실제 평균이 어디쯤인지 추정한 것. 막대 진한 부분이 추정 범위예요.
+  <p><b>낮은 쪽 / 가운데 / 높은 쪽</b> 그 2.5~3.5 안에서 실제 평균이 어디쯤인지 추정한 것.
     사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
-  <p><b>아마3 안 위치 모름</b> 아직 좁힐 단서가 없어서 2.5~3.5 어디든 될 수 있다는 뜻. 정렬할 땐 가운데로 쳐요.</p>
-  <p><b>10명 미만이라 평균이 아직 잘 바뀌어요</b> 신청자가 적으면 한 명만 들어와도 평균이 크게 흔들려요.</p>
+  <p><b>위치 모름</b> 아직 좁힐 단서가 없어서 2.5~3.5 어디든 될 수 있다는 뜻. 정렬할 땐 가운데로 쳐요.</p>
+  <p><b>평균 변동 큼</b> 신청 10명 미만. 한 명만 들어와도 평균이 크게 흔들려요.</p>
+  <p><b>초록 표시</b> 평균이 내 레벨보다 낮거나 같은 매치 (같은 레벨 중 높은 쪽은 제외).</p>
   <p><b>마감 D-6</b> 신청 마감(경기 10분 전)까지 남은 기간.</p>
   <p><b>AI리포트</b> 플랩이 경기 후 AI 분석 리포트를 주는 매치.</p>
 </div></details>`;
