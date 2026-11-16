@@ -96,15 +96,18 @@ export type Tier = "low" | "mid" | "high";
 
 /**
  * 정렬용 칸: 각 레벨을 낮은/중간/높은 세 칸으로 나눈 번호. 작을수록 낮은 레벨. (구간 가운데 값 기준)
- * 화면 표시(tier, narrowed): 표시 레벨의 정중앙(예: 아마3 = 6.0)과 비교해서 확실할 때만 말함
- *   high: 구간 전체가 정중앙보다 위 / low: 전체가 아래 / mid: 정중앙 ±0.1 안 / 그 밖엔 모름
+ * 화면 표시(tier, narrowed): 구간 중앙값을 표시 레벨의 정중앙(예: 아마3 = 6.0)과 비교
+ *   high: 중앙값이 정중앙 + 0.1보다 위 / low: 정중앙 - 0.1보다 아래
+ *   mid: 정중앙 ±0.1 안이면서 구간이 좁을 때(폭 ≤ 0.8)만 — 넓은 구간의 중앙값은 그냥 레벨 한가운데라 의미 없음
  */
+export const TIER_DELTA = 0.1;
+export const MID_MAX_WIDTH = 0.8;
+
 export function levelBucket(e: Estimate): { bucket: number; tier: Tier; narrowed: boolean } {
   const mid = (e.lo + e.hi) / 2;
   const bucket = Math.floor((mid + 0.5) * 3 + EPS);
-  const c = e.labelNum;
-  if (e.lo > c + EPS) return { bucket, tier: "high", narrowed: true };
-  if (e.hi < c - EPS) return { bucket, tier: "low", narrowed: true };
-  if (e.lo >= c - 0.1 - EPS && e.hi <= c + 0.1 + EPS) return { bucket, tier: "mid", narrowed: true };
-  return { bucket, tier: "mid", narrowed: false };
+  const d = mid - e.labelNum;
+  if (d > TIER_DELTA + EPS) return { bucket, tier: "high", narrowed: true };
+  if (d < -TIER_DELTA - EPS) return { bucket, tier: "low", narrowed: true };
+  return { bucket, tier: "mid", narrowed: e.hi - e.lo <= MID_MAX_WIDTH + EPS };
 }
