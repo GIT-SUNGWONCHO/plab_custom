@@ -54,6 +54,8 @@ header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); paddi
 .pill { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--surface); font-size: 13px; color: var(--fg-3); white-space: nowrap; flex: none }
 .pill { cursor: pointer }
+.pill.toggle { appearance: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg-3) }
+.pill.toggle[aria-pressed="true"] { background: var(--blue-soft); border-color: var(--blue); color: var(--blue) }
 .pill .k { font-size: 12px; color: var(--fg-3); font-weight: 500 }
 .sel { position: relative; display: inline-flex; align-items: center }
 .sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--fg);
@@ -117,6 +119,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
   <div class="wrap gutter filters">
     <div class="pill"><span class="sel"><select id="from" aria-label="시작 시간 부터"></select></span>~<span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
     <div class="pill"><span class="sel"><select id="sort" aria-label="정렬"><option value="rec">추천순</option><option value="time">시간순</option></select></span></div>
+    <button class="pill toggle" id="ai" type="button" aria-pressed="false">AI리포트</button>
   </div>
 </header>
 
@@ -128,7 +131,7 @@ const short = (l) => (l || "").replace("아마추어", "아마").replace("세미
 const WD = ["일","월","화","수","목","금","토"];
 const KEY = "plab-radar-board-v1";
 // my: 내 레벨 (초록 표시 기준, 아마3 = 6)
-let prefs = { from: "10:00", to: "17:00", date: "", my: 6, sort: "rec" };
+let prefs = { from: "10:00", to: "17:00", date: "", my: 6, sort: "rec", aiOnly: false };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) {} };
 const $ = (id) => document.getElementById(id);
@@ -137,6 +140,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const times = []; for (let h = 0; h < 24; h++) times.push(String(h).padStart(2, "0") + ":00"); times.push("23:59");
 for (const id of ["from", "to"]) for (const t of times) $(id).append(new Option(t, t));
 $("from").value = prefs.from; $("to").value = prefs.to; $("sort").value = prefs.sort;
+$("ai").setAttribute("aria-pressed", String(prefs.aiOnly));
 
 function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
 function dday(iso) {
@@ -180,7 +184,7 @@ function levelHtml(it) {
   // 레벨 안 위치: ▲ 높은 쪽 · ● 가운데 · ▼ 낮은 쪽 · 모르면 표시 안 함
   const pos = e.narrowed ? { low: ["▼", "낮은 쪽"], mid: ["●", "가운데"], high: ["▲", "높은 쪽"] }[e.tier] : null;
   // 초록: 내 레벨보다 낮거나, 내 레벨과 같은데 높은 쪽이 아닌 매치만
-  const good = e.labelNum < prefs.my || (e.labelNum === prefs.my && !(e.narrowed && e.tier === "high"));
+  const good = it.atOrBelowMine;
 
   return `<div class="lv"><b class="lvname${good ? " good" : ""}">${esc(L)}</b>${pos ? `<span class="tier" role="img" aria-label="${L} 중 ${pos[1]}" title="${L} 중 ${pos[1]}">${pos[0]}</span>` : ""}</div>`;
 }
@@ -206,11 +210,12 @@ function render(data) {
   $("updated").textContent = ago(data.updated_at);
   renderDates(data.dates);
   // 추천순은 서버 정렬 그대로, 시간순은 시작 시각 → 구장명
+  const base = prefs.aiOnly ? data.items.filter((x) => x.aiReport) : data.items;
   const items = prefs.sort === "time"
-    ? [...data.items].sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title))
-    : data.items;
+    ? [...base].sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title))
+    : base;
   const open = items.filter((x) => !x.full), full = items.filter((x) => x.full);
-  if (!data.items.length) { $("main").innerHTML = `<p class="empty">이 날짜·시간대에 조건에 맞는 매치가 없어요.</p>`; return; }
+  if (!items.length) { $("main").innerHTML = HELP + `<p class="empty">이 날짜·시간대에 조건에 맞는 매치가 없어요.</p>`; const h0 = $("help"); h0.open = helpOpen; h0.ontoggle = () => { helpOpen = h0.open; }; return; }
   $("main").innerHTML =
     HELP +
     (open.length ? `<ul class="list">${open.map(rowHtml).join("")}</ul>` : `<p class="empty">신청 가능한 매치가 없어요.</p>`) +
@@ -220,7 +225,8 @@ function render(data) {
 let helpOpen = false;
 
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
-  <p><b>추천순</b> 마감임박 → 평균 레벨 낮은 순 → 6vs6·AI리포트 → 신청 10명 이상 → 이른 시각. 마감된 매치는 맨 아래.</p>
+  <p><b>추천순</b> 평균 아마3 이하(초록) 먼저 → 마감임박 → 평균 레벨 낮은 순 → 6vs6 → 신청 10명 이상 → 이른 시각. 마감된 매치는 맨 아래.</p>
+  <p><b>AI리포트 버튼</b> 누르면 AI리포트 매치만 보여요.</p>
   <p><b>시간순</b> 시작 시각 순. 마감된 매치는 맨 아래.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
   <p><b>아마3 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이.</p>
@@ -237,10 +243,10 @@ let seq = 0;
 async function load() {
   const my = ++seq;
   try {
-    let data = await api(`/api/board?date=${prefs.date || kstToday()}&from=${prefs.from}&to=${prefs.to}`);
+    let data = await api(`/api/board?date=${prefs.date || kstToday()}&from=${prefs.from}&to=${prefs.to}&my=${prefs.my}`);
     if (my !== seq) return;
     const before = prefs.date; renderDates(data.dates);
-    if (prefs.date !== before) data = await api(`/api/board?date=${prefs.date}&from=${prefs.from}&to=${prefs.to}`);
+    if (prefs.date !== before) data = await api(`/api/board?date=${prefs.date}&from=${prefs.from}&to=${prefs.to}&my=${prefs.my}`);
     if (my !== seq) return;
     save(); render(data);
   } catch (e) {
@@ -252,6 +258,7 @@ $("dates").addEventListener("click", (e) => { const b = e.target.closest(".date"
 $("from").onchange = (e) => { prefs.from = e.target.value; if (prefs.from > prefs.to) { prefs.to = prefs.from; $("to").value = prefs.to; } save(); load(); };
 $("to").onchange = (e) => { prefs.to = e.target.value; if (prefs.to < prefs.from) { prefs.from = prefs.to; $("from").value = prefs.from; } save(); load(); };
 $("sort").onchange = (e) => { prefs.sort = e.target.value; save(); if (last) render(last); };
+$("ai").onclick = () => { prefs.aiOnly = !prefs.aiOnly; $("ai").setAttribute("aria-pressed", String(prefs.aiOnly)); save(); if (last) render(last); };
 $("reload").onclick = load;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 load();

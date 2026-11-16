@@ -124,6 +124,8 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
     const date = url.searchParams.get("date") ?? "";
     const from = url.searchParams.get("from") || "00:00";
     const to = url.searchParams.get("to") || "23:59";
+    const myLevel = Number(url.searchParams.get("my") ?? 6);
+    if (!Number.isInteger(myLevel) || myLevel < 1 || myLevel > 12) return json({ error: "my: 1~12" }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "date=YYYY-MM-DD 필요" }, 400);
     if (!TIME_RE.test(from) && from !== "23:59") return json({ error: "from: 'HH:MM'" }, 400);
     if (!TIME_RE.test(to) && to !== "23:59") return json({ error: "to: 'HH:MM'" }, 400);
@@ -154,7 +156,7 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
       filter: { date, from, to },
       updated_at: (lastRun.results[0] as { ts?: string } | undefined)?.ts ?? null,
       dates,
-      items: buildBoard(rows as BoardMatchRow[], byMatch, { date, from, to }),
+      items: buildBoard(rows as BoardMatchRow[], byMatch, { date, from, to, myLevel }),
     });
   }
 

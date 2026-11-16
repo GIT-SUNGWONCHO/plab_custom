@@ -92,7 +92,7 @@ test("거르기: 날짜·시간대, 레벨 제한 매치, 여자 매치", () => 
   assert.deepEqual(ids, [1, 3, 9, 10]);
 });
 
-test("정렬: 마감임박 → 레벨 칸 → 선호도 → 10명 이상 → 시작 시각, 마감은 맨 아래", () => {
+test("정렬: 내 레벨 이하 → 마감임박 → 레벨 칸 → 6vs6 → 10명 이상 → 시작 시각, 마감은 맨 아래", () => {
   const S = new Map<number, SnapLevel[]>([
     [1, [snap("아마추어3", { a: 10 })]], // 아마3 중간, 6vs6
     [2, [snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 }), snap("아마추어3", { a: 10 })]], // 높은 3
@@ -115,21 +115,27 @@ test("정렬: 마감임박 → 레벨 칸 → 선호도 → 10명 이상 → 시
     row({ id: 8, confirm: 2, average_level: "루키" }),
     row({ id: 9, kst_time: "11:00" }),
   ];
+  // 내 레벨(아마3) 이하 먼저: 3(아마2) → 아마3 중간들(6vs6 먼저, AI리포트는 무관) → 높은 3(2) → 추정 없음(8) → 마감(7)
   const board = buildBoard(rows, S, F);
-  assert.deepEqual(board.map((x) => x.id), [3, 4, 9, 1, 5, 6, 2, 8, 7]);
+  assert.deepEqual(board.map((x) => x.id), [3, 9, 4, 1, 5, 6, 2, 8, 7]); // 4(12:00)·1(13:00)은 시각 순
+  assert.equal(board.find((x) => x.id === 2)!.atOrBelowMine, false); // 아마3 중 높은 쪽
+  assert.equal(board.find((x) => x.id === 9)!.atOrBelowMine, true);
 
-  // 마감임박(신청 15명 이상)은 레벨과 상관없이 먼저 (마감보다는 위)
-  rows.find((r) => r.id === 2)!.confirm = 15;
-  rows.find((r) => r.id === 6)!.confirm = 16;
+  // 마감임박(신청 15명 이상)은 내 레벨 이하 그룹 안에서 먼저
+  rows.find((r) => r.id === 2)!.confirm = 15; // 높은 3 → 내 레벨 이하 아님 → 그 그룹 안에서만 먼저
+  rows.find((r) => r.id === 6)!.confirm = 16; // 아마3 중간, 5vs5
   rows.find((r) => r.id === 1)!.apply_status = "hurry"; // 플랩 hurry(6명+)는 무시
   const b2 = buildBoard(rows, S, F);
-  assert.deepEqual(b2.map((x) => x.id), [6, 2, 3, 4, 9, 1, 5, 8, 7]);
+  assert.deepEqual(b2.map((x) => x.id), [6, 3, 9, 4, 1, 5, 2, 8, 7]);
+
+  // 내 레벨을 아마4로 바꾸면 높은 3(2번)도 우선 그룹 → 마감임박끼리 레벨 낮은 6번 다음 2번
+  assert.deepEqual(buildBoard(rows, S, { ...F, myLevel: 7 }).map((x) => x.id).slice(0, 2), [6, 2]);
   assert.equal(b2.find((x) => x.id === 1)!.closingSoon, false);
   assert.equal(b2.find((x) => x.id === 7)!.closingSoon, false); // 마감은 마감임박 아님
   const first = board[0];
   assert.equal(first.estimate?.label, "아마추어2");
   const ai = board.find((x) => x.id === 4)!;
-  assert.equal(ai.preference, 2);
+  assert.equal(ai.preference, 1); // 6vs6만 가점
   assert.equal(ai.aiReport, true);
   assert.equal(ai.aiKnown, true);
   assert.equal(buildBoard([row({ id: 99, features: null })], new Map(), F)[0].aiKnown, false);
