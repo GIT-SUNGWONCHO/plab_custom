@@ -85,9 +85,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .tags { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; color: var(--fg-3) }
 .tags .on { color: var(--fg-2); font-weight: 600 }
 .tags .dot { color: var(--border) }
-.badge { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 5px; line-height: 1.3 }
+.badge { display: inline-block; vertical-align: 2px; margin-left: 6px; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 5px; line-height: 1.4; white-space: nowrap }
 .badge.ai { background: var(--blue); color: #ffffff }
-.badge.no-ai { background: var(--muted); color: var(--fg-3); font-weight: 500 }
 .lv { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 13px }
 .lv > * { white-space: nowrap }
 .rel { font-size: 12px; color: var(--fg-3) }
@@ -192,13 +191,12 @@ function rowHtml(it) {
   const status = it.full ? ["full", "마감"] : it.applyStatus === "hurry" ? ["hurry", "마감임박"] : ["available", "신청가능"];
   const tags = [
     `<span class="${it.is6v6 ? "on" : ""}">${esc((it.format || "").replace(/\s/g, ""))}</span>`,
-    it.aiReport ? `<span class="badge ai">AI리포트</span>` : it.aiKnown ? `<span class="badge no-ai">AI리포트 없음</span>` : "",
     it.sex === 1 ? `<span>남자</span>` : `<span>남녀 모두</span>`,
   ].filter(Boolean).join(`<span class="dot">·</span>`);
   return `<li><a class="row${it.full ? " full" : ""}" href="${esc(it.url)}" target="_blank" rel="noopener">
     <div class="time">${esc(it.time)}<small>${esc(it.full ? "" : dday(it.deadlineAt))}</small></div>
     <div class="body">
-      <div class="title">${esc(it.title)}</div>
+      <div class="title">${esc(it.title)}${it.aiReport ? `<span class="badge ai">AI리포트</span>` : ""}</div>
       <div class="tags">${tags}</div>
       ${levelHtml(it)}
       <div class="ppl${it.enoughPlayers ? "" : " thin"}">신청 ${it.confirm}/${it.max ?? "?"}명${it.enoughPlayers ? "" : " · 평균 변동 큼"}</div>
