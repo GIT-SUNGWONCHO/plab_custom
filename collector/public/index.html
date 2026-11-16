@@ -137,6 +137,24 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .btn.small { height: 36px; padding: 0 12px; font-size: 13px; flex: none }
 .btn.danger { background: transparent; color: var(--red); font-weight: 600 }
 .note { font-size: 13px; color: var(--fg-3); min-height: 18px }
+.lv { cursor: pointer }
+.hist-head { display: flex; flex-direction: column; gap: 2px }
+.hist-head .sub { font-size: 13px; color: var(--fg-3) }
+.readout { font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; min-height: 18px }
+.readout b { color: var(--fg) }
+.chart { display: flex; flex-direction: column; gap: 4px }
+.chart h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3) }
+.chart svg { display: block; width: 100%; touch-action: none; overflow: visible }
+.chart .grid { stroke: var(--border); stroke-width: 1 }
+.chart .axis { fill: var(--fg-3); font-size: 10px; font-family: var(--font) }
+.chart .line { fill: none; stroke: var(--fg); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round }
+.chart .area { fill: var(--muted) }
+.chart .dot { fill: var(--fg); stroke: var(--surface); stroke-width: 2 }
+.chart .cross { stroke: var(--fg-3); stroke-width: 1; stroke-dasharray: 3 3 }
+.log { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; border-top: 1px solid var(--border) }
+.log li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border) }
+.log li span:first-child { color: var(--fg-3) }
+.log .chg { color: var(--fg); font-weight: 700 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
 </style>
 </head>
@@ -245,7 +263,7 @@ function rowHtml(it) {
     `<span class="${it.is6v6 ? "on" : ""}">${esc((it.format || "").replace(/\s/g, ""))}</span>`,
     it.sex === 1 ? `<span>남자</span>` : `<span>남녀 모두</span>`,
   ].filter(Boolean).join(`<span class="dot">·</span>`) + (it.aiReport ? `<span class="badge ai">AI리포트</span>` : "");
-  return `<li><a class="row${it.full ? " full" : ""}" href="${esc(it.url)}" target="_blank" rel="noopener">
+  return `<li><a class="row${it.full ? " full" : ""}" data-id="${it.id}" href="${esc(it.url)}" target="_blank" rel="noopener">
     <div class="time"><span>${esc(it.time)}${(() => { const d = it.full ? "" : dday(it.deadlineAt); return d ? `<small>${esc(d)}</small>` : ""; })()}</span>${levelHtml(it)}</div>
     <div class="body">
       <div class="title">${esc(it.title)}</div>
@@ -279,6 +297,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>마감 제외 버튼</b> 기본으로 켜져 있어 마감된 매치를 숨겨요. 끄면 마감 매치도 같은 순서 안에 섞여 보여요.</p>
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
+  <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요.</p>
   <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이. 평가된 신청자가 없으면 –.</p>
   <p><b>▲ ● ▼</b> 그 2.5~3.5 안에서 추정한 평균 범위의 가운데가 3.0보다 위 / 거의 3.0 / 아래라는 뜻.
     사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
@@ -307,6 +326,12 @@ async function load() {
   }
 }
 
+$("main").addEventListener("click", (e) => {
+  const lv = e.target.closest(".lv");
+  if (!lv) return;
+  e.preventDefault(); e.stopPropagation();
+  openHistory(Number(lv.closest("a.row").dataset.id));
+});
 $("dates").addEventListener("click", (e) => { const b = e.target.closest(".date"); if (!b) return; prefs.date = b.dataset.date; save(); load(); });
 $("from").onchange = (e) => { prefs.from = e.target.value; if (prefs.from > prefs.to) { prefs.to = prefs.from; $("to").value = prefs.to; } save(); load(); };
 $("to").onchange = (e) => { prefs.to = e.target.value; if (prefs.to < prefs.from) { prefs.from = prefs.to; $("from").value = prefs.from; } save(); load(); };
@@ -398,6 +423,101 @@ function openSheet() {
   };
 }
 $("bell").onclick = openSheet;
+
+// ---------- 레벨·인원 추이 ----------
+const lvNum = (l) => { const i = LV.indexOf(l); return i > 0 ? i : null; }; // 루키(0)/없음 = 평균 없음
+const kst = (iso) => new Date(Date.parse(iso) + 9 * 3600e3);
+const fmtTs = (iso) => { const d = kst(iso); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
+
+function stepChart(el, pts, t0, t1, dom, ticks, h, xTicks) {
+  // pts: [{t, v}] v=null이면 끊김. 계단 그래프(값은 다음 관측까지 유지)
+  const W = el.clientWidth || 320, L = 40, R = 10, T = 8, B = xTicks ? 18 : 6, H = h;
+  const x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
+  const y = (v) => T + (1 - (v - dom[0]) / (dom[1] - dom[0])) * (H - T - B);
+  let g = "";
+  for (const [v, label] of ticks) g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${L - 6}" y="${y(v) + 3.5}" text-anchor="end">${label}</text>`;
+  if (xTicks) for (const [t, label] of xTicks) g += `<text class="axis" x="${x(t)}" y="${H - 4}" text-anchor="middle">${label}</text>`;
+  let d = "", area = "", open = false;
+  pts.forEach((p, i) => {
+    const xe = x(i + 1 < pts.length ? pts[i + 1].t : t1);
+    if (p.v == null) { open = false; return; }
+    d += open ? ` V${y(p.v)} H${xe}` : ` M${x(p.t)},${y(p.v)} H${xe}`;
+    area += ` M${x(p.t)},${y(dom[0])} V${y(p.v)} H${xe} V${y(dom[0])} Z`;
+    open = true;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img">${g}${h > 0 && el.dataset.area ? `<path class="area" d="${area}"/>` : ""}<path class="line" d="${d}"/>
+    <line class="cross" y1="${T}" y2="${H - B}" x1="-10" x2="-10"/><circle class="dot" r="4" cx="-10" cy="-10"/></svg>`;
+  return { x, y, svg: el.firstElementChild, W, L, R };
+}
+
+async function openHistory(id) {
+  const bg = document.createElement("div");
+  bg.className = "sheet-bg";
+  bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hist-title"><p class="note">불러오는 중…</p></div>`;
+  document.body.append(bg);
+  bg.addEventListener("click", (e) => { if (e.target === bg) bg.remove(); });
+  let data;
+  try { data = await (await fetch(`/api/matches/${id}/history`)).json(); } catch (e) { data = null; }
+  const sheet = bg.firstElementChild;
+  if (!data || !data.match) { sheet.innerHTML = `<p class="note">추이를 불러오지 못했어요.</p><button class="btn sub" type="button">닫기</button>`; sheet.querySelector("button").onclick = () => bg.remove(); return; }
+  const m = data.match, snaps = data.snapshots;
+  const pts = snaps.map((s) => ({ t: Date.parse(s.ts), lv: lvNum(s.average_level), n: s.confirm, label: s.average_level, ts: s.ts }));
+  const start = Date.parse(`${m.kst_date}T${m.kst_time}:00+09:00`);
+  const t0 = pts.length ? pts[0].t : Date.now(), t1 = Math.max(t0 + 3600e3, Math.min(Date.now(), start));
+  const e = data.estimate;
+  // 아마추어 레벨일 때만 '아마 2.6~3.1'처럼 소수로 보여줌 (범위가 레벨 하나보다 좁을 때)
+  const range = e && e.narrowed && e.labelNum >= 4 && e.labelNum <= 8 ? ` · 추정 평균 아마${(e.lo - 3).toFixed(1)}~${(e.hi - 3).toFixed(1)}` : "";
+  sheet.innerHTML = `
+    <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2>
+      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 지금 평균 ${esc(m.average_level && m.average_level !== "루키" ? short(m.average_level) : "–")} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명${range}</span></div>
+    ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
+    <div class="readout" id="readout" aria-live="polite"></div>
+    <div class="chart"><h3>평균 레벨</h3><div id="c-lv"></div></div>
+    <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
+    ${pts.length ? `<ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 40).map((p, i, arr) => {
+      const prev = arr[i + 1];
+      return `<li><span>${fmtTs(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span></li>`;
+    }).join("")}</ul>` : ""}
+    <button class="btn sub" id="hist-close" type="button">닫기</button>`;
+  $("hist-close").onclick = () => bg.remove();
+  if (pts.length < 2) return;
+
+  // 평균 레벨: 데이터 범위 ±1 정수 레벨
+  const lvs = pts.map((p) => p.lv).filter((v) => v != null);
+  const lo = Math.max(1, Math.min(...lvs) - 1), hi = Math.min(12, Math.max(...lvs) + 1);
+  const lvTicks = []; for (let v = lo; v <= hi; v++) lvTicks.push([v, esc(short(LV[v]))]);
+  const maxN = Math.max(m.max_players || 0, ...pts.map((p) => p.n));
+  const nTicks = [[0, "0"], [10, "10"], [maxN, String(maxN)]].filter((t, i, a) => t[0] <= maxN && a.findIndex((u) => u[0] === t[0]) === i);
+  // x 눈금: 날짜(KST 자정) 최대 4개
+  const xt = []; const day = 86400e3; let d0 = Math.ceil((t0 + 9 * 3600e3) / day) * day - 9 * 3600e3;
+  const step = Math.max(1, Math.ceil((t1 - d0) / day / 4));
+  for (let t = d0; t <= t1; t += step * day) { const d = kst(new Date(t).toISOString()); xt.push([t, `${d.getUTCMonth() + 1}/${d.getUTCDate()}`]); }
+  const A = stepChart($("c-lv"), pts.map((p) => ({ t: p.t, v: p.lv })), t0, t1, [lo, hi], lvTicks, 130, null);
+  const B = stepChart($("c-n"), pts.map((p) => ({ t: p.t, v: p.n })), t0, t1, [0, maxN], nTicks, 110, xt);
+
+  const show = (i) => {
+    const p = pts[i];
+    $("readout").innerHTML = `${fmtTs(p.ts)} · 신청 <b>${p.n}명</b> · 평균 <b>${esc(short(p.label) || "–")}</b>`;
+    for (const [C, v] of [[A, p.lv], [B, p.n]]) {
+      const cx = C.x(p.t);
+      const cross = C.svg.querySelector(".cross"), dot = C.svg.querySelector(".dot");
+      cross.setAttribute("x1", cx); cross.setAttribute("x2", cx);
+      if (v == null) { dot.setAttribute("cy", -10); continue; }
+      dot.setAttribute("cx", cx); dot.setAttribute("cy", C.y(v));
+    }
+  };
+  const pick = (ev, C) => {
+    const r = C.svg.getBoundingClientRect();
+    const t = t0 + ((ev.clientX - r.left) * (C.W / r.width) - C.L) / (C.W - C.L - C.R) * (t1 - t0);
+    let i = 0; while (i + 1 < pts.length && pts[i + 1].t <= t) i++;
+    show(i);
+  };
+  for (const C of [A, B]) {
+    C.svg.addEventListener("pointerdown", (ev) => pick(ev, C));
+    C.svg.addEventListener("pointermove", (ev) => { if (ev.pointerType === "mouse" || ev.buttons) pick(ev, C); });
+  }
+  show(pts.length - 1);
+}
 refreshBell();
 load();
 </script>

@@ -5,7 +5,7 @@
 import { ntfyFetchWith, sendNtfy, TOPIC_RE } from "./alerts.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
-import type { SnapLevel } from "./estimate.ts";
+import { estimateLevel, levelBucket, type SnapLevel } from "./estimate.ts";
 import { matchUrl, PlabClient, type FetchFn } from "./plab.ts";
 
 export interface Env {
@@ -76,7 +76,28 @@ export async function handleFetch(
     return json({ ok: true, tracking, last_run: last });
   }
   // 보드 조회는 공개 (지인 공유용). 규칙 변경·수동 실행 등 관리 기능만 토큰 필요
-  const isPublic = (path === "/api/board" && req.method === "GET") || path === "/api/alerts" || path === "/api/alerts/test";
+  const historyMatch = /^\/api\/matches\/(\d+)\/history$/.exec(path);
+  const isPublic = (path === "/api/board" && req.method === "GET") || path === "/api/alerts" || path === "/api/alerts/test"
+    || (!!historyMatch && req.method === "GET");
+
+  // --- 매치 레벨·인원 추이 (공개, 화면 팝업용)
+  if (historyMatch && req.method === "GET") {
+    const id = Number(historyMatch[1]);
+    const m = await env.DB.prepare(
+      "SELECT id, title, kst_date, kst_time, confirm, max_players, average_level, apply_status FROM match WHERE id = ?",
+    ).bind(id).first();
+    if (!m) return json({ error: "not found" }, 404);
+    const { results: snaps } = await env.DB.prepare(
+      `SELECT ts, confirm, average_level, pct_rookie, pct_beginner, pct_amateur, pct_semipro, pct_pro
+       FROM snapshot WHERE match_id = ? ORDER BY ts, id`,
+    ).bind(id).all<SnapLevel & { ts: string }>();
+    const est = estimateLevel(snaps);
+    return json({
+      match: m,
+      estimate: est ? { ...est, ...levelBucket(est) } : null,
+      snapshots: snaps.map((s) => ({ ts: s.ts, confirm: s.confirm, average_level: s.average_level })),
+    });
+  }
   if (!isPublic && !authorized(req, env)) return json({ error: "unauthorized" }, 401);
 
   // --- 알림 구독 (공개: 토픽 자체가 비밀번호 역할)
