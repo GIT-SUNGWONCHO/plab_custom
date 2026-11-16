@@ -79,7 +79,10 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
                 `INSERT INTO match (id, rule_id, title, stadium_group, area, schedule, kst_date, kst_time,
                                     format, level_rule, level_code, sex, features, first_seen_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(id) DO NOTHING`,
+                 ON CONFLICT(id) DO UPDATE SET
+                   level_code = excluded.level_code, features = excluded.features,
+                   sex = COALESCE(match.sex, excluded.sex)
+                 WHERE match.level_code IS NOT excluded.level_code OR match.features IS NOT excluded.features`,
               )
               .bind(m.id, rule.id, m.title, m.stadiumGroup, m.area, m.schedule, date, m.kstTime,
                     m.format, m.levelRule, m.levelCode, m.sex, JSON.stringify(m.features), nowIso),
@@ -89,6 +92,7 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
             .bind(key, nowIso),
         );
         const res = await db.batch(stmts);
+        // 새로 등록되거나 목록 정보(레벨 제한·AI리포트 등)가 바뀐 매치 수
         result.discovered += res.slice(0, -1).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
       } catch (e) {
         result.errors.push(`discover ${rule.id} ${date}: ${String(e)}`);

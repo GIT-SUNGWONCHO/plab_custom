@@ -1,6 +1,6 @@
 // Cloudflare Worker 진입점
 //  - scheduled: 매분 크론 → 수집기 실행
-//  - fetch: 확인/설정용 작은 API (ADMIN_TOKEN 필요, /health 제외)
+//  - fetch: 보드 API(공개) + 관리 API (ADMIN_TOKEN 필요)
 
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
@@ -58,7 +58,9 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
     const tracking = await env.DB.prepare("SELECT COUNT(*) AS n FROM match WHERE tracking = 1").first<number>("n");
     return json({ ok: true, tracking, last_run: last });
   }
-  if (!authorized(req, env)) return json({ error: "unauthorized" }, 401);
+  // 보드 조회는 공개 (지인 공유용). 규칙 변경·수동 실행 등 관리 기능만 토큰 필요
+  const isPublic = path === "/api/board" && req.method === "GET";
+  if (!isPublic && !authorized(req, env)) return json({ error: "unauthorized" }, 401);
 
   // --- 구장 검색: 규칙에 넣을 stadium_group id 찾기
   if (path === "/api/stadiums/search" && req.method === "GET") {

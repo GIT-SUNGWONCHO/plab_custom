@@ -28,6 +28,7 @@ function utcSchedule(date: string, time: string) {
 
 class FakePlab {
   matches = new Map<number, FakeMatch>();
+  listFeatures = new Map<number, string[]>();
   calls: string[] = [];
   userAgents = new Set<string>();
 
@@ -55,6 +56,7 @@ class FakePlab {
           attributes: {
             stadium_group: `그룹${m.group}`, area_label: "서울 송파", format: "6vs6", level: "일반",
             participants: { label: `${m.confirm}/${m.max}` }, schedule: utcSchedule(m.date, m.time),
+            level_code: 0, gender: null, features: (this.listFeatures.get(m.id) ?? []).map((code) => ({ code })),
           },
         }));
       return ok({ count: results.length, next: null, previous: null, results });
@@ -69,7 +71,8 @@ class FakePlab {
           id: m.id, title: `구장${m.group}`, schedule, lifecycle: m.lifecycle, apply_status: m.status,
           state_expires_at: new Date(Date.parse(schedule) - 10 * MINUTE).toISOString(),
           stadium: { id: m.group * 10, group_id: m.group, name: `그룹${m.group}`, area_group: "서울", area: "송파구" },
-          format: "6 vs 6", level_label: "모든 레벨", sex: 0, pricing: { final_fee: 10000 },
+          format: "6 vs 6", level_label: "모든 레벨", level_code: 0, sex: 0, pricing: { final_fee: 10000 },
+          features: (this.listFeatures.get(m.id) ?? []).map((code) => ({ code })),
           participants: { confirm: m.confirm, max: m.max, min: 10, female_count: 0 },
           applicant_progress: { phase: null },
         },
@@ -180,6 +183,14 @@ describe("수집기", () => {
     assert.equal(db.rows("SELECT last_polled_at FROM match WHERE id = 3")[0].last_polled_at, at(16).toISOString());
   });
 
+  test("목록 재탐색 때 AI리포트·레벨 제한 정보도 갱신", async () => {
+    await run(T0);
+    assert.equal(db.rows("SELECT features FROM match WHERE id = 2")[0].features, "[]");
+    plab.listFeatures.set(2, ["ai_report"]);
+    await run(at(16));
+    assert.equal(db.rows("SELECT features FROM match WHERE id = 2")[0].features, '["ai_report"]');
+  });
+
   test("목록에 새로 열린 매치는 다음 탐색 주기에 추가", async () => {
     await run(T0);
     plab.add({ id: 7, date: "2026-11-14", time: "14:00" });
@@ -247,9 +258,13 @@ describe("API", () => {
     plab = new FakePlab();
   });
 
-  test("토큰 없으면 401, /health는 공개", async () => {
+  test("관리 API는 토큰 필요, /health·보드는 공개", async () => {
     assert.equal((await handleFetch(req("/api/rules", {}, null), env())).status, 401);
     assert.equal((await handleFetch(req("/api/rules", {}, "wrong"), env())).status, 401);
+    // 보드는 토큰 없이 조회 가능 (지인 공유)
+    assert.equal((await handleFetch(req("/api/board?date=2026-11-22", {}, null), env())).status, 200);
+    // 관리 기능은 GET 이외/다른 경로 모두 토큰 필요
+    assert.equal((await handleFetch(req("/api/run", { method: "POST" }, null), env())).status, 401);
     const h = await handleFetch(req("/health", {}, null), env());
     assert.equal(h.status, 200);
     assert.equal(((await h.json()) as { ok: boolean }).ok, true);

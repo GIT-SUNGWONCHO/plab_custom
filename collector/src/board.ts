@@ -1,6 +1,7 @@
 // 매치 보드: 거르기 + 정렬 (순수 함수)
 //
 // 1. 거르기: 날짜·시작 시간대, 참가 레벨 제한 없는(일반) 매치만, 여자 매치 제외
+// (마감임박 매치를 먼저 — 그 안에서 아래 순서)
 // 2. 레벨 칸 (낮을수록 위)
 // 3. 같은 칸이면 선호도: 6vs6 +1, AI리포트 +1
 // 4. 그다음 신청 인원 10명 미만은 아래로
@@ -46,6 +47,8 @@ export interface BoardItem {
   format: string | null;
   is6v6: boolean;
   aiReport: boolean;
+  /** AI리포트 여부를 아직 모르면 false (상세·목록 정보 수집 전) */
+  aiKnown: boolean;
   sex: number | null;
   confirm: number;
   max: number | null;
@@ -85,6 +88,7 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
         format: m.format,
         is6v6,
         aiReport,
+        aiKnown: m.features != null,
         sex: m.sex,
         confirm,
         max: m.max_players,
@@ -101,6 +105,7 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
   return items.sort(
     (a, b) =>
       Number(a.full) - Number(b.full) ||
+      Number(b.applyStatus === "hurry") - Number(a.applyStatus === "hurry") ||
       (a.bucket ?? Infinity) - (b.bucket ?? Infinity) ||
       b.preference - a.preference ||
       Number(b.enoughPlayers) - Number(a.enoughPlayers) ||

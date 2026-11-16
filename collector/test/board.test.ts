@@ -92,7 +92,7 @@ test("거르기: 날짜·시간대, 레벨 제한 매치, 여자 매치", () => 
   assert.deepEqual(ids, [1, 3, 9, 10]);
 });
 
-test("정렬: 레벨 칸 → 선호도 → 10명 이상 → 시작 시각, 마감은 맨 아래", () => {
+test("정렬: 마감임박 → 레벨 칸 → 선호도 → 10명 이상 → 시작 시각, 마감은 맨 아래", () => {
   const S = new Map<number, SnapLevel[]>([
     [1, [snap("아마추어3", { a: 10 })]], // 아마3 중간, 6vs6
     [2, [snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 }), snap("아마추어3", { a: 10 })]], // 높은 3
@@ -117,11 +117,18 @@ test("정렬: 레벨 칸 → 선호도 → 10명 이상 → 시작 시각, 마�
   ];
   const board = buildBoard(rows, S, F);
   assert.deepEqual(board.map((x) => x.id), [3, 4, 9, 1, 5, 6, 2, 8, 7]);
+
+  // 마감임박은 레벨과 상관없이 먼저 (마감보다는 위)
+  rows.find((r) => r.id === 2)!.apply_status = "hurry";
+  rows.find((r) => r.id === 6)!.apply_status = "hurry";
+  assert.deepEqual(buildBoard(rows, S, F).map((x) => x.id), [6, 2, 3, 4, 9, 1, 5, 8, 7]);
   const first = board[0];
   assert.equal(first.estimate?.label, "아마추어2");
   const ai = board.find((x) => x.id === 4)!;
   assert.equal(ai.preference, 2);
   assert.equal(ai.aiReport, true);
+  assert.equal(ai.aiKnown, true);
+  assert.equal(buildBoard([row({ id: 99, features: null })], new Map(), F)[0].aiKnown, false);
   assert.equal(board.find((x) => x.id === 5)!.enoughPlayers, false);
   assert.equal(board.find((x) => x.id === 2)!.estimate?.tier, "high");
 });
