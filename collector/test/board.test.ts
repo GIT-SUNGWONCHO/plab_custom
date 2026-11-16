@@ -168,3 +168,12 @@ test("레벨 합은 정수: 1명 평균 아마1이면 정확히 아마1 (높은 
   assert.equal(e.hi, 4);
   assert.equal(levelBucket(e).tier, "mid");
 });
+
+test("●는 구간이 아주 좁을 때만 (넓으면 표시 없음)", () => {
+  // 아마추어 6명 평균 아마3 → 합 33~38 → 5.5~6.33 정도, 폭이 넓어 '모름'
+  const wide = estimateLevel([snap("아마추어3", { a: 6 })])!;
+  assert.equal(levelBucket(wide).narrowed, false);
+  // 1명 아마1 → 정확히 4.0 → ●
+  const exact = estimateLevel([snap("아마추어1", { a: 1 })])!;
+  assert.deepEqual([levelBucket(exact).tier, levelBucket(exact).narrowed], ["mid", true]);
+});
