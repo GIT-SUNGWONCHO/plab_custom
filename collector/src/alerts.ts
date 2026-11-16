@@ -14,6 +14,8 @@ export const NTFY_BASE = "https://ntfy.sh";
 export const TOPIC_RE = /^[A-Za-z0-9_-]{12,64}$/;
 export const QUIET_HOURS = { from: 0, to: 8 }; // KST, [from, to)
 export const MAX_SENDS_PER_RUN = 8; // 수집 38 + 알림 8 < 무료 플랜 subrequest 50
+/** ntfy 무료 계정 하루 250건 → 여유를 두고 200건에서 멈춤 (전체 사용자 합계) */
+export const MAX_SENDS_PER_DAY = 200;
 const MY_LEVEL = 6; // 아마3 고정
 
 export interface AlertSub {
@@ -119,12 +121,19 @@ export async function runAlerts(db: D1Database, fetchFn: FetchFn, now = new Date
   await db.prepare("DELETE FROM alert_sub WHERE date < ?").bind(today).run();
   if (isQuietHour(now)) { result.skippedQuiet = true; return result; }
 
+  // 하루 상한 (ntfy 계정 한도는 UTC 자정 기준으로 초기화 → 여기서도 UTC 날짜로 셈)
+  const sentToday = await db
+    .prepare("SELECT COUNT(*) AS n FROM alert_log WHERE ts >= ?")
+    .bind(now.toISOString().slice(0, 10) + "T00:00:00.000Z")
+    .first<number>("n");
+  const budget = Math.min(MAX_SENDS_PER_RUN, MAX_SENDS_PER_DAY - (sentToday ?? 0));
+  if (budget <= 0) return result;
   const { results: subs } = await db.prepare("SELECT * FROM alert_sub").all<AlertSub>();
   if (!subs.length) return result;
   const boards = new Map<string, Awaited<ReturnType<typeof loadBoardRows>>>();
 
   for (const sub of subs) {
-    if (result.sent + result.failed >= MAX_SENDS_PER_RUN) break;
+    if (result.sent + result.failed >= budget) break;
     if (!boards.has(sub.date)) boards.set(sub.date, await loadBoardRows(db, sub.date));
     const { rows, byMatch } = boards.get(sub.date)!;
     const items = buildBoard(rows, byMatch, { date: sub.date, from: sub.time_from, to: sub.time_to, myLevel: MY_LEVEL }, now.getTime());
@@ -143,7 +152,7 @@ export async function runAlerts(db: D1Database, fetchFn: FetchFn, now = new Date
           .bind(sub.topic, item.id, now.toISOString()).run();
         continue;
       }
-      if (result.sent + result.failed >= MAX_SENDS_PER_RUN) break;
+      if (result.sent + result.failed >= budget) break;
       const ok = await sendNtfy(fetchFn, sub.topic, { ...messageFor(item, kind), click: item.url }).catch(() => false);
       if (ok) {
         result.sent++;

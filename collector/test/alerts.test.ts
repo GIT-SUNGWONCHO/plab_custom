@@ -123,3 +123,11 @@ test("API: 구독 저장·조회·테스트·삭제 (토큰 없이)", async () =
   assert.equal((await call(`/api/alerts?topic=${TOPIC}`, "DELETE")).status, 200);
   assert.equal(await (await call(`/api/alerts?topic=${TOPIC}`)).json(), null);
 });
+
+test("하루 발송 상한(200건)에 닿으면 더 안 보냄", async () => {
+  subscribe();
+  addMatch(1, { confirm: 12, avg: "아마추어3" });
+  const ins = db.db.prepare("INSERT INTO alert_log (topic, match_id, kind, ts) VALUES ('other', ?, 'ten', ?)");
+  for (let i = 0; i < 200; i++) ins.run(1000 + i, NOW.toISOString());
+  assert.equal((await runAlerts(asD1(db), ntfy, NOW)).sent, 0);
+});
