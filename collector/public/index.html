@@ -50,17 +50,18 @@ header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); paddi
 .date[aria-pressed="true"] { background: var(--black) }
 .date[aria-pressed="true"] b, .date[aria-pressed="true"] span { color: var(--on-black) }
 
-.filters { display: flex; gap: 8px; align-items: center; padding-block: 0 12px; flex-wrap: wrap }
-.pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--surface); font-size: 14px; color: var(--fg) }
+.filters { display: flex; gap: 6px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap }
+.pill { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); font-size: 13px; color: var(--fg-3); white-space: nowrap; flex: none }
 .pill { cursor: pointer }
 .pill .k { font-size: 12px; color: var(--fg-3); font-weight: 500 }
 .sel { position: relative; display: inline-flex; align-items: center }
-.sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-size: 16px; font-weight: 700; color: inherit;
-  padding: 0 16px 0 0; cursor: pointer; font-variant-numeric: tabular-nums }
-.sel::after { content: "▾"; position: absolute; right: 0; pointer-events: none; font-size: 12px; color: var(--fg-3) }
+.sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--fg);
+  padding: 0 13px 0 0; cursor: pointer; font-variant-numeric: tabular-nums }
+.sel::after { content: "▾"; position: absolute; right: 0; pointer-events: none; font-size: 10px; color: var(--fg-3) }
 .pill.level { background: var(--brand-soft); border-color: transparent; color: var(--brand-text); font-weight: 600 }
 .pill.level .k { color: var(--brand-text) }
+.pill.level .sel select { color: var(--brand-text) }
 .pill.level .sel::after { color: var(--brand-text) }
 
 .help { margin-top: 12px; border-radius: 12px; background: var(--muted) }
@@ -123,9 +124,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
   </div>
   <div class="wrap gutter"><div class="dates" id="dates" role="tablist" aria-label="날짜"></div></div>
   <div class="wrap gutter filters">
-    <div class="pill"><span class="k">시작 시간</span>
-      <span class="sel"><select id="from" aria-label="시작 시간 부터"></select></span>~<span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
-    <label class="pill level"><span class="k">내 레벨</span><span class="sel"><select id="mylevel" aria-label="내 레벨"></select></span></label>
+    <div class="pill"><span class="sel"><select id="from" aria-label="시작 시간 부터"></select></span>~<span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
+    <label class="pill level"><span class="k">내레벨</span><span class="sel"><select id="mylevel" aria-label="내 레벨"></select></span></label>
   </div>
 </header>
 
