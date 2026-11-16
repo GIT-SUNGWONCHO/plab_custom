@@ -1,0 +1,17 @@
+{
+  "language": "korean",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/korean-check.py\"",
+            "timeout": 10,
+            "statusMessage": "한국어 답변 확인 중"
+          }
+        ]
+      }
+    ]
+  }
+}
