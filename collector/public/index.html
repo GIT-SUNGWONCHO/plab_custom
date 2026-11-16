@@ -87,7 +87,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .tags { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; color: var(--fg-3) }
 .tags .on { color: var(--fg-2); font-weight: 600 }
 .tags .dot { color: var(--border) }
-.title .badge { display: inline-block; vertical-align: 2px; margin-left: 5px }
+.tags { align-items: center }
+.tags .badge { margin-left: 2px }
 .badge { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; line-height: 1.4; white-space: nowrap }
 .badge.ai { background: var(--blue-soft); color: var(--blue) }
 .lv { position: relative; display: inline-flex; align-items: center; font-size: 13px; white-space: nowrap }
@@ -208,11 +209,11 @@ function rowHtml(it) {
   const tags = [
     `<span class="${it.is6v6 ? "on" : ""}">${esc((it.format || "").replace(/\s/g, ""))}</span>`,
     it.sex === 1 ? `<span>남자</span>` : `<span>남녀 모두</span>`,
-  ].filter(Boolean).join(`<span class="dot">·</span>`);
+  ].filter(Boolean).join(`<span class="dot">·</span>`) + (it.aiReport ? `<span class="badge ai">AI리포트</span>` : "");
   return `<li><a class="row${it.full ? " full" : ""}" href="${esc(it.url)}" target="_blank" rel="noopener">
     <div class="time"><span>${esc(it.time)}${(() => { const d = it.full ? "" : dday(it.deadlineAt); return d ? `<small>${esc(d)}</small>` : ""; })()}</span>${levelHtml(it)}</div>
     <div class="body">
-      <div class="title">${esc(it.title)}${it.aiReport ? `<span class="badge ai">AI리포트</span>` : ""}</div>
+      <div class="title">${esc(it.title)}</div>
       <div class="tags">${tags}</div>
       <div class="ppl${it.confirm > 0 && !it.enoughPlayers ? " thin" : ""}">신청 ${it.confirm}/${it.max ?? "?"}명</div>
     </div>
