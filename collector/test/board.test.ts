@@ -118,10 +118,14 @@ test("정렬: 마감임박 → 레벨 칸 → 선호도 → 10명 이상 → 시
   const board = buildBoard(rows, S, F);
   assert.deepEqual(board.map((x) => x.id), [3, 4, 9, 1, 5, 6, 2, 8, 7]);
 
-  // 마감임박은 레벨과 상관없이 먼저 (마감보다는 위)
-  rows.find((r) => r.id === 2)!.apply_status = "hurry";
-  rows.find((r) => r.id === 6)!.apply_status = "hurry";
-  assert.deepEqual(buildBoard(rows, S, F).map((x) => x.id), [6, 2, 3, 4, 9, 1, 5, 8, 7]);
+  // 마감임박(신청 15명 이상)은 레벨과 상관없이 먼저 (마감보다는 위)
+  rows.find((r) => r.id === 2)!.confirm = 15;
+  rows.find((r) => r.id === 6)!.confirm = 16;
+  rows.find((r) => r.id === 1)!.apply_status = "hurry"; // 플랩 hurry(6명+)는 무시
+  const b2 = buildBoard(rows, S, F);
+  assert.deepEqual(b2.map((x) => x.id), [6, 2, 3, 4, 9, 1, 5, 8, 7]);
+  assert.equal(b2.find((x) => x.id === 1)!.closingSoon, false);
+  assert.equal(b2.find((x) => x.id === 7)!.closingSoon, false); // 마감은 마감임박 아님
   const first = board[0];
   assert.equal(first.estimate?.label, "아마추어2");
   const ai = board.find((x) => x.id === 4)!;

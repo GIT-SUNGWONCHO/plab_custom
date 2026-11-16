@@ -1,7 +1,7 @@
 // 매치 보드: 거르기 + 정렬 (순수 함수)
 //
 // 1. 거르기: 날짜·시작 시간대, 참가 레벨 제한 없는(일반) 매치만, 여자 매치 제외
-// (마감임박 매치를 먼저 — 그 안에서 아래 순서)
+// (마감임박 = 신청 15명 이상인 매치를 먼저 — 그 안에서 아래 순서)
 // 2. 레벨 칸 (낮을수록 위)
 // 3. 같은 칸이면 선호도: 6vs6 +1, AI리포트 +1
 // 4. 그다음 신청 인원 10명 미만은 아래로
@@ -54,6 +54,8 @@ export interface BoardItem {
   max: number | null;
   applyStatus: string | null;
   full: boolean;
+  /** 마감임박: 마감 전이고 신청 CLOSING_SOON_PLAYERS명 이상 (플랩의 hurry는 6명 이상이라 쓰지 않음) */
+  closingSoon: boolean;
   averageLevel: string | null;
   estimate: (Estimate & { tier: Tier; narrowed: boolean }) | null;
   bucket: number | null;
@@ -62,6 +64,7 @@ export interface BoardItem {
 }
 
 export const MIN_RELIABLE_PLAYERS = 10;
+export const CLOSING_SOON_PLAYERS = 15;
 
 const isUnrestricted = (m: BoardMatchRow) =>
   m.level_code != null ? m.level_code === 0 : m.level_rule == null || m.level_rule === "일반" || m.level_rule === "모든 레벨";
@@ -94,6 +97,7 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
         max: m.max_players,
         applyStatus: m.apply_status,
         full: m.apply_status === "full",
+        closingSoon: m.apply_status !== "full" && confirm >= CLOSING_SOON_PLAYERS,
         averageLevel: m.average_level,
         estimate: est && b ? { ...est, tier: b.tier, narrowed: b.narrowed } : null,
         bucket: b ? b.bucket : null,
@@ -105,7 +109,7 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
   return items.sort(
     (a, b) =>
       Number(a.full) - Number(b.full) ||
-      Number(b.applyStatus === "hurry") - Number(a.applyStatus === "hurry") ||
+      Number(b.closingSoon) - Number(a.closingSoon) ||
       (a.bucket ?? Infinity) - (b.bucket ?? Infinity) ||
       b.preference - a.preference ||
       Number(b.enoughPlayers) - Number(a.enoughPlayers) ||
