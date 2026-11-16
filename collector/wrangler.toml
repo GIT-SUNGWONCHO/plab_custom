@@ -2,6 +2,8 @@ name = "plab-radar"
 main = "src/worker.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
+# 대시보드에서 넣은 변수(NTFY_TOKEN 등)를 배포 때 지우지 않음
+keep_vars = true
 
 # 매분 실행. 실제로 무엇을 가져올지는 src/schedule.ts의 적응형 주기가 결정.
 [triggers]
