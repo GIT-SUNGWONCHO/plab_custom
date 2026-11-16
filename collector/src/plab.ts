@@ -20,6 +20,9 @@ export interface ListedMatch {
   schedule: string; // UTC ISO
   format: string | null;
   levelRule: string | null;
+  levelCode: number | null;
+  sex: number | null; // 0 무관, 1 남자, -1 여자
+  features: string[];
 }
 
 export interface MatchDetail {
@@ -35,6 +38,8 @@ export interface MatchDetail {
   area: string | null;
   format: string | null;
   levelRule: string | null;
+  levelCode: number | null;
+  features: string[];
   sex: number | null;
   fee: number | null;
   confirm: number;
@@ -71,6 +76,9 @@ function str(v: unknown, path: string): string {
 }
 const optStr = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const optNum = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const featureCodes = (v: unknown): string[] =>
+  Array.isArray(v) ? v.flatMap((f) => (isObj(f) && typeof f.code === "string" ? [f.code] : [])) : [];
+const GENDER_LABEL: Record<string, number> = { 남자: 1, 여자: -1 };
 
 // ---------- 파서 (테스트에서 샘플 JSON으로 직접 검증) ----------
 export function parseList(body: unknown): { matches: ListedMatch[]; next: string | null } {
@@ -88,6 +96,9 @@ export function parseList(body: unknown): { matches: ListedMatch[]; next: string
       schedule: str(a.schedule, `results[${i}].attributes.schedule`),
       format: optStr(a.format),
       levelRule: optStr(a.level),
+      levelCode: optNum(a.level_code),
+      sex: typeof a.gender === "string" ? (GENDER_LABEL[a.gender] ?? null) : 0,
+      features: featureCodes(a.features),
     };
   });
   return { matches, next: optStr(data.next) };
@@ -112,6 +123,8 @@ export function parseDetail(body: unknown): MatchDetail {
     area: [optStr(stadium.area_group), optStr(stadium.area)].filter(Boolean).join(" ") || null,
     format: optStr(m.format),
     levelRule: optStr(m.level_label),
+    levelCode: optNum(m.level_code),
+    features: featureCodes(m.features),
     sex: optNum(m.sex),
     fee: optNum(pricing.final_fee),
     confirm: num(p.confirm, "participants.confirm"),

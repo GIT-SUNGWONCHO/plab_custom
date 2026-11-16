@@ -77,12 +77,12 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
             db
               .prepare(
                 `INSERT INTO match (id, rule_id, title, stadium_group, area, schedule, kst_date, kst_time,
-                                    format, level_rule, first_seen_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    format, level_rule, level_code, sex, features, first_seen_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(id) DO NOTHING`,
               )
               .bind(m.id, rule.id, m.title, m.stadiumGroup, m.area, m.schedule, date, m.kstTime,
-                    m.format, m.levelRule, nowIso),
+                    m.format, m.levelRule, m.levelCode, m.sex, JSON.stringify(m.features), nowIso),
           );
         stmts.push(
           db.prepare("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
@@ -198,7 +198,8 @@ export async function saveObservation(
     db.prepare(
       `UPDATE match SET title = ?, stadium_group = COALESCE(?, stadium_group), stadium_group_id = ?, stadium_id = ?,
               area = COALESCE(?, area), schedule = ?, kst_date = ?, kst_time = ?, deadline_at = ?,
-              format = COALESCE(?, format), level_rule = COALESCE(?, level_rule), sex = ?, fee = ?,
+              format = COALESCE(?, format), level_rule = COALESCE(?, level_rule),
+              level_code = COALESCE(?, level_code), features = ?, sex = ?, fee = ?,
               max_players = ?, min_players = ?, confirm = ?, apply_status = ?, lifecycle = ?,
               average_level = ?, average_level_num = ?, last_polled_at = ?, poll_errors = 0,
               last_changed_at = CASE WHEN ? THEN ? ELSE last_changed_at END
@@ -206,7 +207,7 @@ export async function saveObservation(
     ).bind(
       d.title, d.stadiumGroup, d.stadiumGroupId, d.stadiumId,
       d.area, d.schedule, kstDate(new Date(d.schedule)), kstTime(new Date(d.schedule)), d.deadlineAt,
-      d.format, d.levelRule, d.sex, d.fee,
+      d.format, d.levelRule, d.levelCode, JSON.stringify(d.features), d.sex, d.fee,
       d.max, d.min, d.confirm, d.applyStatus, d.lifecycle,
       g.averageLevel, avgNum, nowIso,
       changed ? 1 : 0, nowIso,

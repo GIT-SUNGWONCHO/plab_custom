@@ -46,6 +46,9 @@ test("목록 파서: 실제 응답 샘플", () => {
   assert.equal(matches[0].kstTime, "01:00");
   assert.equal(matches[0].stadiumGroup, "용인 기흥 낫소 풋살파크");
   assert.equal(matches[0].levelRule, "일반");
+  assert.equal(matches[0].levelCode, 0);
+  assert.equal(matches[0].sex, 0); // gender null = 성별 무관
+  assert.deepEqual(matches[0].features, ["screen"]);
   assert.ok(next?.includes("page=2"));
 });
 
@@ -60,6 +63,9 @@ test("상세 파서: 실제 응답 샘플", () => {
   // 마감 = 시작 10분 전
   assert.equal(Date.parse(d.schedule) - Date.parse(d.deadlineAt!), 10 * MINUTE);
   assert.ok(d.stadiumGroupId && d.stadiumId);
+  assert.equal(d.levelCode, 0);
+  assert.equal(d.sex, 0);
+  assert.deepEqual(d.features, []);
 });
 
 test("레벨 그래프 파서", () => {

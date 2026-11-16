@@ -1,5 +1,5 @@
 name = "plab-radar"
-main = "src/index.ts"
+main = "src/worker.ts"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
@@ -12,6 +12,12 @@ binding = "DB"
 database_name = "plab-radar"
 database_id = "89a05da1-8e8d-4d74-a609-af14aedeebf8"
 migrations_dir = "migrations"
+
+# 매치 보드 화면(public/index.html)을 Worker 코드에 텍스트로 묶어서 배포
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
 
 [observability]
 enabled = true

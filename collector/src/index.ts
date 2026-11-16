@@ -2,7 +2,9 @@
 //  - scheduled: 매분 크론 → 수집기 실행
 //  - fetch: 확인/설정용 작은 API (ADMIN_TOKEN 필요, /health 제외)
 
+import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
+import type { SnapLevel } from "./estimate.ts";
 import { matchUrl, PlabClient } from "./plab.ts";
 
 export interface Env {
@@ -115,6 +117,45 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
     return json(results);
   }
 
+  // --- 매치 보드: /api/board?date=YYYY-MM-DD&from=HH:MM&to=HH:MM
+  if (path === "/api/board" && req.method === "GET") {
+    const date = url.searchParams.get("date") ?? "";
+    const from = url.searchParams.get("from") || "00:00";
+    const to = url.searchParams.get("to") || "23:59";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "date=YYYY-MM-DD 필요" }, 400);
+    if (!TIME_RE.test(from) && from !== "23:59") return json({ error: "from: 'HH:MM'" }, 400);
+    if (!TIME_RE.test(to) && to !== "23:59") return json({ error: "to: 'HH:MM'" }, 400);
+
+    const [{ results: rows }, { results: snaps }, { results: dates }, lastRun] = await env.DB.batch<any>([
+      env.DB.prepare(
+        `SELECT id, title, stadium_group, kst_date, kst_time, schedule, deadline_at, format, level_rule, level_code,
+                sex, features, confirm, max_players, min_players, apply_status, average_level
+         FROM match WHERE kst_date = ?`,
+      ).bind(date),
+      env.DB.prepare(
+        `SELECT s.match_id, s.confirm, s.average_level, s.pct_rookie, s.pct_beginner, s.pct_amateur, s.pct_semipro, s.pct_pro
+         FROM snapshot s JOIN match m ON m.id = s.match_id
+         WHERE m.kst_date = ? ORDER BY s.match_id, s.ts, s.id`,
+      ).bind(date),
+      env.DB.prepare(
+        `SELECT kst_date AS date, COUNT(*) AS matches FROM match
+         WHERE kst_date >= ? GROUP BY kst_date ORDER BY kst_date`,
+      ).bind(new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)),
+      env.DB.prepare("SELECT ts FROM run_log ORDER BY ts DESC LIMIT 1"),
+    ]);
+    const byMatch = new Map<number, SnapLevel[]>();
+    for (const s of snaps as (SnapLevel & { match_id: number })[]) {
+      if (!byMatch.has(s.match_id)) byMatch.set(s.match_id, []);
+      byMatch.get(s.match_id)!.push(s);
+    }
+    return json({
+      filter: { date, from, to },
+      updated_at: (lastRun.results[0] as { ts?: string } | undefined)?.ts ?? null,
+      dates,
+      items: buildBoard(rows as BoardMatchRow[], byMatch, { date, from, to }),
+    });
+  }
+
   // --- 실행 기록 / 수동 실행
   if (path === "/api/runs" && req.method === "GET") {
     const { results } = await env.DB.prepare("SELECT * FROM run_log ORDER BY ts DESC LIMIT 50").all();
@@ -126,16 +167,3 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
 
   return json({ error: "not found" }, 404);
 }
-
-export default {
-  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(
-      runCollector(env.DB, new PlabClient(), new Date(controller.scheduledTime)).then((r) => {
-        if (r.errors.length) console.error("collector errors", r.errors);
-      }),
-    );
-  },
-  fetch(req: Request, env: Env): Promise<Response> {
-    return handleFetch(req, env);
-  },
-} satisfies ExportedHandler<Env>;
