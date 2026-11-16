@@ -52,7 +52,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .date[aria-pressed="true"] { background: var(--black) }
 .date[aria-pressed="true"] b, .date[aria-pressed="true"] span { color: var(--on-black) }
 
-.filters { display: flex; gap: 2px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
+.filters { display: flex; justify-content: space-between; gap: 2px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
 .filters::-webkit-scrollbar { display: none }
 .pill { display: inline-flex; align-items: center; gap: 1px; height: 28px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border);
   background: var(--surface); font-size: 12px; color: var(--fg-3); white-space: nowrap; flex: none }
@@ -155,8 +155,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
   <div class="wrap gutter filters">
     <div class="pill"><span class="sel bare"><select id="from" aria-label="시작 시간 부터"></select></span><span class="tilde">~</span><span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
     <div class="pill"><span class="sel"><select id="sort" aria-label="정렬"><option value="rec">추천</option><option value="time">시간</option></select></span></div>
-    <button class="pill toggle" id="v6" type="button" aria-pressed="false">6vs6</button>
     <button class="pill toggle" id="ai" type="button" aria-pressed="false" aria-label="AI리포트 매치만">AI</button>
+    <button class="pill toggle" id="v6" type="button" aria-pressed="false">6vs6</button>
     <button class="pill toggle" id="p10" type="button" aria-pressed="false" aria-label="신청 10명 이상만">10명+</button>
     <button class="pill toggle" id="tf" type="button" aria-pressed="false">더에프</button>
     <button class="pill toggle" id="nofull" type="button" aria-pressed="false">마감제외</button>
@@ -274,7 +274,7 @@ let helpOpen = false;
 
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
   <p><b>추천순</b> 평균 아마3 이하(초록) 매치 먼저, 그다음 나머지. 각각 마감임박 → 이른 시각 순 (같은 시각이면 레벨 낮은 순 → 6vs6 → 신청 10명 이상).</p>
-  <p><b>6vs6 · AI(리포트) · 10명+ · 더에프 버튼</b> 누르면 그 매치만 보여요 (더에프 = 영등포 더에프필드). 여러 개 켜면 모두 해당하는 매치만.</p>
+  <p><b>AI(리포트) · 6vs6 · 10명+ · 더에프 버튼</b> 누르면 그 매치만 보여요 (더에프 = 영등포 더에프필드). 여러 개 켜면 모두 해당하는 매치만.</p>
   <p><b>마감 제외 버튼</b> 기본으로 켜져 있어 마감된 매치를 숨겨요. 끄면 마감 매치도 같은 순서 안에 섞여 보여요.</p>
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
