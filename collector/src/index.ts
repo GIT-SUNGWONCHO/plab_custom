@@ -126,7 +126,7 @@ export async function handleFetch(
     if (last && Date.now() - Date.parse(last) < 60_000) return json({ error: "1분 뒤에 다시 시도해 주세요" }, 429);
     await env.DB.prepare("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
       .bind(key, new Date().toISOString()).run();
-    const ok = await sendNtfy(ntfyFetch, topic, { title: "플랩레이더 · 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: ["soccer", "white_check_mark"] })
+    const ok = await sendNtfy(ntfyFetch, topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: "white_check_mark" })
       .catch(() => false);
     return json({ ok }, ok ? 200 : 502);
   }

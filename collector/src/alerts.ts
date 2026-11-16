@@ -51,27 +51,24 @@ export function pickEvents(items: BoardItem[], sub: AlertSub): { item: BoardItem
 
 const shortLevel = (l: string | undefined) => (l ?? "").replace("아마추어", "아마").replace("세미프로", "세미");
 
-export function messageFor(it: BoardItem, kind: AlertKind): { title: string; body: string; tags: string[] } {
+export function messageFor(it: BoardItem, kind: AlertKind): { title: string; body: string; tags: string } {
   const lv = shortLevel(it.estimate?.label);
-  // 아이폰은 알림 아이콘을 못 바꿔서, 제목 앞 ⚽(태그) + "플랩레이더"로 다른 ntfy 알림과 구분
-  const title = kind === "soon"
-    ? `플랩레이더 · 마감임박 ${it.time} ${lv}`
-    : `플랩레이더 · ${it.time} ${lv} · ${it.confirm}명 모임`;
+  const title = kind === "soon" ? `마감임박 ${it.time} ${lv}` : `${it.time} ${lv} 매치 ${it.confirm}명 모임`;
   const extra = [it.format?.replace(/\s/g, ""), it.aiReport ? "AI리포트" : ""].filter(Boolean).join(" · ");
   const body = `${it.title}\n신청 ${it.confirm}/${it.max ?? "?"}명${extra ? " · " + extra : ""}`;
-  return { title, body, tags: kind === "soon" ? ["soccer", "rotating_light"] : ["soccer"] };
+  return { title, body, tags: kind === "soon" ? "rotating_light" : "soccer" };
 }
 
 /** ntfy로 한 건 보내기. 한글 제목은 헤더에 못 넣으므로 JSON 방식으로 보냄 */
 export async function sendNtfy(
   fetchFn: FetchFn,
   topic: string,
-  msg: { title: string; body: string; tags: string[]; click?: string },
+  msg: { title: string; body: string; tags: string; click?: string },
 ): Promise<boolean> {
   const res = await fetchFn(NTFY_BASE, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ topic, title: msg.title, message: msg.body, tags: msg.tags, click: msg.click, priority: 4 }),
+    body: JSON.stringify({ topic, title: msg.title, message: msg.body, tags: [msg.tags], click: msg.click, priority: 4 }),
   });
   if (!res.ok) console.error("ntfy failed", res.status, (await res.text().catch(() => "")).slice(0, 300));
   return res.ok;
