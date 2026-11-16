@@ -84,7 +84,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "content-type: application/jso
 | `GET /api/runs` | 최근 실행 기록 |
 | `POST /api/run` | 수동 1회 실행 |
 
-인증: `Authorization: Bearer <ADMIN_TOKEN>` 또는 `?token=`
+인증: `Authorization: Bearer <ADMIN_TOKEN>` (쿼리 문자열 토큰은 받지 않음)
 
 ## 개발
 

@@ -60,13 +60,18 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
   // ---------- 1. 탐색 ----------
   const rules = await loadRules(db);
   const dates = upcomingKstDates(now, CONFIG.discoveryHorizonDays);
+  // 탐색 시각을 한 번에 읽어 D1 쿼리 수를 줄임
+  const { results: stateRows } = await db
+    .prepare("SELECT key, value FROM state WHERE key LIKE 'discovered:%'")
+    .all<{ key: string; value: string }>();
+  const lastDiscovered = new Map(stateRows.map((r) => [r.key, r.value]));
   for (const rule of rules) {
     if (rule.stadiumGroupIds.length === 0) continue;
     for (const date of dates) {
       if (!rule.weekdays.includes(weekdayOf(date))) continue;
       if (budgetLeft() < 10) break; // 폴링 몫은 남겨둠
       const key = `discovered:${rule.id}:${date}`;
-      const last = await db.prepare("SELECT value FROM state WHERE key = ?").bind(key).first<string>("value");
+      const last = lastDiscovered.get(key);
       if (last && now.getTime() - Date.parse(last) < CONFIG.discoveryIntervalMs) continue;
       try {
         const listed = await client.listMatches(date, rule.stadiumGroupIds);
@@ -80,9 +85,12 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
                                     format, level_rule, level_code, sex, features, first_seen_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(id) DO UPDATE SET
-                   level_code = excluded.level_code, features = excluded.features,
-                   sex = COALESCE(match.sex, excluded.sex)
-                 WHERE match.level_code IS NOT excluded.level_code OR match.features IS NOT excluded.features`,
+                   level_code = COALESCE(match.level_code, excluded.level_code),
+                   features = COALESCE(match.features, excluded.features),
+                   sex = COALESCE(match.sex, excluded.sex),
+                   tracking = 1, poll_errors = 0, stop_reason = NULL
+                 WHERE match.level_code IS NULL OR match.features IS NULL
+                    OR (match.tracking = 0 AND match.stop_reason = 'too_many_errors')`,
               )
               .bind(m.id, rule.id, m.title, m.stadiumGroup, m.area, m.schedule, date, m.kstTime,
                     m.format, m.levelRule, m.levelCode, m.sex, JSON.stringify(m.features), nowIso),
@@ -92,7 +100,7 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
             .bind(key, nowIso),
         );
         const res = await db.batch(stmts);
-        // 새로 등록되거나 목록 정보(레벨 제한·AI리포트 등)가 바뀐 매치 수
+        // 새로 등록된 매치 + 목록 정보를 처음 채운 매치 + 오류로 멈췄다 다시 추적하는 매치 수
         result.discovered += res.slice(0, -1).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
       } catch (e) {
         result.errors.push(`discover ${rule.id} ${date}: ${String(e)}`);
@@ -118,7 +126,7 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
   const due = live
     .map((m) => ({ m, ...pollDue({ schedule: m.schedule, deadlineAt: m.deadline_at, lastPolledAt: m.last_polled_at }, now.getTime()) }))
     .filter((x) => x.due)
-    .sort((a, b) => b.overdueMs - a.overdueMs);
+    .sort((a, b) => b.priority - a.priority);
 
   for (const { m } of due) {
     if (budgetLeft() < 2) break; // 매치당 상세 + 레벨그래프 2회
@@ -162,6 +170,7 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
               result.errors.length ? JSON.stringify(result.errors) : null),
       db.prepare("DELETE FROM run_log WHERE ts < ?")
         .bind(new Date(now.getTime() - CONFIG.runLogRetentionMs).toISOString()),
+      db.prepare("DELETE FROM state WHERE key LIKE 'discovered:%' AND substr(key, -10) < ?").bind(kstDate(now)),
     ]);
   }
   return result;

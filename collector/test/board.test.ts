@@ -153,3 +153,11 @@ test("초록 아닌 매치도 시작 시각 순 (레벨 낮은 순 아님)", () 
   const rows = [row({ id: 1, kst_time: "17:00" }), row({ id: 2, kst_time: "10:00" }), row({ id: 3, kst_time: "12:00" })];
   assert.deepEqual(buildBoard(rows, S, F).map((x) => x.id), [2, 3, 1]);
 });
+
+test("신청 마감 시각이 지난 매치는 '마감'으로 (수집이 멈춰 상태가 신청가능으로 남아도)", () => {
+  const r = row({ id: 1, schedule: "2026-11-22T03:00:00Z", deadline_at: "2026-11-22T02:50:00Z", apply_status: "available", confirm: 16 });
+  const before = buildBoard([r], new Map(), F, Date.parse("2026-11-22T02:49:00Z"))[0];
+  const after = buildBoard([r], new Map(), F, Date.parse("2026-11-22T02:51:00Z"))[0];
+  assert.deepEqual([before.full, before.closingSoon], [false, true]);
+  assert.deepEqual([after.full, after.closingSoon], [true, false]);
+});

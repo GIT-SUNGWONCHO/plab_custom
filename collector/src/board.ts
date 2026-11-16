@@ -1,16 +1,16 @@
 // 매치 보드: 거르기 + 정렬 (순수 함수)
 //
-// 1. 거르기: 날짜·시작 시간대, 참가 레벨 제한 없는(일반) 매치만, 여자 매치 제외
+// 거르기: 날짜·시작 시간대, 참가 레벨 제한 없는(일반) 매치만, 여자 매치 제외
+// 정렬:
 // 1. 평균이 내 레벨 이하인 매치(초록) 먼저 (내 레벨과 같으면 그 레벨 중 높은 쪽은 제외), 그다음 나머지
 // 2. 각 그룹 안에서 마감임박(신청 15명 이상) 먼저
 // 3. 경기 시작 시각 순
 // 4. 같은 시각이면: 레벨 칸 낮은 순 → 6vs6 → 신청 10명 이상 (AI리포트는 정렬에 안 씀 — 화면에서 필터로)
-// 4. 그다음 신청 인원 10명 미만은 아래로
-// 5. 그래도 같으면 경기 시작이 빠른 순
 // 마감된 매치도 같은 규칙으로 정렬 (화면에서 기본은 '마감 제외')
 
 import { estimateLevel, levelBucket, type Estimate, type SnapLevel, type Tier } from "./estimate.ts";
 import { matchUrl } from "./plab.ts";
+import { deadlineOf } from "./schedule.ts";
 
 export interface BoardMatchRow {
   id: number;
@@ -74,7 +74,12 @@ export const CLOSING_SOON_PLAYERS = 15;
 const isUnrestricted = (m: BoardMatchRow) =>
   m.level_code != null ? m.level_code === 0 : m.level_rule == null || m.level_rule === "일반" || m.level_rule === "모든 레벨";
 
-export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, SnapLevel[]>, f: BoardFilter): BoardItem[] {
+export function buildBoard(
+  rows: BoardMatchRow[],
+  snapsByMatch: Map<number, SnapLevel[]>,
+  f: BoardFilter,
+  now: number = Date.now(),
+): BoardItem[] {
   const my = f.myLevel ?? 6;
   const items = rows
     .filter((m) => m.kst_date === f.date && m.kst_time >= f.from && m.kst_time <= f.to)
@@ -87,6 +92,9 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
       const is6v6 = (m.format ?? "").replace(/\s/g, "") === "6vs6";
       const aiReport = features.includes("ai_report");
       const confirm = m.confirm ?? 0;
+      // 꽉 찼거나, 신청 마감 시각(보통 시작 10분 전)이 지난 매치 = 마감
+      // (마감 후엔 수집이 멈춰 apply_status가 마지막 값으로 남기 때문)
+      const closed = m.apply_status === "full" || now > deadlineOf({ schedule: m.schedule, deadlineAt: m.deadline_at });
       return {
         id: m.id,
         url: matchUrl(m.id),
@@ -102,8 +110,8 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
         confirm,
         max: m.max_players,
         applyStatus: m.apply_status,
-        full: m.apply_status === "full",
-        closingSoon: m.apply_status !== "full" && confirm >= CLOSING_SOON_PLAYERS,
+        full: closed,
+        closingSoon: !closed && confirm >= CLOSING_SOON_PLAYERS,
         averageLevel: m.average_level,
         estimate: est && b ? { ...est, tier: b.tier, narrowed: b.narrowed } : null,
         bucket: b ? b.bucket : null,

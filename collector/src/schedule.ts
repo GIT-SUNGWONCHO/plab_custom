@@ -37,13 +37,20 @@ export function deadlineOf(s: { schedule: string; deadlineAt: string | null }): 
   return s.deadlineAt ? Date.parse(s.deadlineAt) : Date.parse(s.schedule) - 10 * MINUTE;
 }
 
-/** 지금 폴링할 차례인지, 얼마나 밀렸는지(우선순위용, 클수록 급함) */
-export function pollDue(s: PollState, now: number): { due: boolean; overdueMs: number } {
-  if (!s.lastPolledAt) return { due: true, overdueMs: Number.MAX_SAFE_INTEGER };
-  const interval = pollIntervalMs(deadlineOf(s) - now);
+/**
+ * 지금 폴링할 차례인지와 우선순위(클수록 급함).
+ * 우선순위: 마감 3시간 이내 매치를 먼저, 그 안에서는 (경과 시간 / 주기) 비율이 큰 순.
+ * 한 번도 폴링 안 된 매치는 비율 2로 쳐서, 새 매치가 많이 생겨도 마감 직전 매치를 밀어내지 않게 함.
+ */
+export function pollDue(s: PollState, now: number): { due: boolean; priority: number } {
+  const untilDeadline = deadlineOf(s) - now;
+  const interval = pollIntervalMs(untilDeadline);
+  const urgent = untilDeadline <= 3 * HOUR ? 1000 : 0;
+  if (!s.lastPolledAt) return { due: true, priority: urgent + 2 };
+  const elapsed = now - Date.parse(s.lastPolledAt);
   // 크론이 1분 단위라 30초 여유를 둬서 "59초 지나서 한 주기 건너뛰기"를 막음
-  const overdueMs = now - Date.parse(s.lastPolledAt) - interval + 30_000;
-  return { due: overdueMs >= 0, overdueMs };
+  const due = elapsed + 30_000 >= interval;
+  return { due, priority: urgent + elapsed / interval };
 }
 
 export interface Rule {

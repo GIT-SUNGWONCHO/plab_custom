@@ -15,7 +15,7 @@ export interface Env {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", "access-control-allow-origin": "*" },
+    headers: { "content-type": "application/json; charset=utf-8" }, // 화면과 같은 주소에서만 쓰므로 CORS 없음
   });
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -41,12 +41,19 @@ function validateRule(b: RuleInput): string | null {
   return null;
 }
 
+/** 관리 API 인증: Authorization: Bearer <ADMIN_TOKEN> 만 받음 (쿼리 문자열은 로그·기록에 남아서 안 받음) */
 function authorized(req: Request, env: Env): boolean {
   if (!env.ADMIN_TOKEN) return false;
-  const url = new URL(req.url);
   const header = req.headers.get("authorization") ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : url.searchParams.get("token");
-  return token === env.ADMIN_TOKEN;
+  if (!header.startsWith("Bearer ")) return false;
+  return timingSafeEqual(header.slice(7), env.ADMIN_TOKEN);
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
 }
 
 export async function handleFetch(req: Request, env: Env, client = new PlabClient()): Promise<Response> {
@@ -54,7 +61,9 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
   if (path === "/health") {
-    const last = await env.DB.prepare("SELECT * FROM run_log ORDER BY ts DESC LIMIT 1").first();
+    const last = await env.DB.prepare(
+      "SELECT ts, discovered, polled, snapshots, requests, errors IS NOT NULL AS had_errors FROM run_log ORDER BY ts DESC LIMIT 1",
+    ).first();
     const tracking = await env.DB.prepare("SELECT COUNT(*) AS n FROM match WHERE tracking = 1").first<number>("n");
     return json({ ok: true, tracking, last_run: last });
   }

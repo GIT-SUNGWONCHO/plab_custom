@@ -191,6 +191,42 @@ describe("수집기", () => {
     assert.equal(db.rows("SELECT features FROM match WHERE id = 2")[0].features, '["ai_report"]');
   });
 
+  test("목록과 상세의 기능 목록이 달라도 값이 왔다갔다 하지 않음", async () => {
+    plab.listFeatures.set(2, ["ai_report"]);
+    await run(T0); // 탐색(목록) + 폴링(상세) 모두 ["ai_report"]
+    // 상세에만 있는 기능이 생김 → 폴링이 상세 값으로 갱신, 이후 재탐색이 목록 값으로 되돌리면 안 됨
+    const realFetch = plab.fetch;
+    plab.fetch = async (input, init) => {
+      const res = await realFetch(input, init);
+      if (!/\/social-matches\/2\/$/.test(new URL(input).pathname)) return res;
+      const body = (await res.json()) as any;
+      body.data.match.features = [{ code: "ai_report" }, { code: "team_preset" }];
+      return new Response(JSON.stringify(body), { status: 200 });
+    };
+    await run(at(6));
+    const r = await run(at(16)); // 재탐색
+    assert.equal(db.rows("SELECT features FROM match WHERE id = 2")[0].features, '["ai_report","team_preset"]');
+    assert.equal(r.discovered, 0);
+  });
+
+  test("오류로 추적이 멈춘 매치는 다음 재탐색 때 다시 추적", async () => {
+    await run(T0);
+    db.db.prepare("UPDATE match SET tracking = 0, stop_reason = 'too_many_errors', poll_errors = 5 WHERE id = 2").run();
+    await run(at(16));
+    assert.deepEqual(db.rows("SELECT tracking, poll_errors, stop_reason FROM match WHERE id = 2")[0],
+      { tracking: 1, poll_errors: 0, stop_reason: null });
+  });
+
+  test("새 매치가 많아도 마감 3시간 이내 매치를 먼저 폴링", async () => {
+    // 11/14 11:00 매치(2번) 마감 1시간 전 시점, 이미 한 번 폴링된 상태
+    const near = new Date("2026-11-14T00:47:00Z");
+    await run(new Date("2026-11-14T00:40:00Z"));
+    for (let i = 0; i < 40; i++) plab.add({ id: 300 + i, date: "2026-11-14", time: "13:30" });
+    db.db.prepare("DELETE FROM state").run(); // 바로 재탐색되게
+    await run(near);
+    assert.equal(db.rows("SELECT last_polled_at FROM match WHERE id = 2")[0].last_polled_at, near.toISOString());
+  });
+
   test("목록에 새로 열린 매치는 다음 탐색 주기에 추가", async () => {
     await run(T0);
     plab.add({ id: 7, date: "2026-11-14", time: "14:00" });

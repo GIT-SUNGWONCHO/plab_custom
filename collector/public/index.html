@@ -26,7 +26,7 @@
   --blue: #4492ff; --blue-soft: #14243d; --red: #ff6a55; --red-soft: #3a1d18; --sat: #4492ff; --sun: #ff6a55;
   color-scheme: dark } }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent }
-html, body { margin: 0; overflow-x: hidden; touch-action: pan-y; -webkit-text-size-adjust: 100% }
+html, body { margin: 0; overflow-x: clip; touch-action: pan-y; -webkit-text-size-adjust: 100% }
 body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.45; letter-spacing: -0.01em;
   padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) }
 .wrap { max-width: 640px; margin: 0 auto }
@@ -57,6 +57,7 @@ header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); paddi
 .pill { cursor: pointer }
 .pill.toggle { appearance: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--fg-3) }
 .pill.toggle[aria-pressed="true"] { background: var(--blue-soft); border-color: var(--blue); color: var(--blue) }
+.pill .tilde { margin: 0 3px 0 1px }
 .pill .k { font-size: 12px; color: var(--fg-3); font-weight: 500 }
 .sel { position: relative; display: inline-flex; align-items: center }
 .sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg);
@@ -74,13 +75,13 @@ header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); paddi
 .section { font-size: 13px; font-weight: 700; color: var(--fg-3); padding-block: 18px 6px }
 
 ul.list { list-style: none; margin: 0; padding: 0 }
-.row { display: grid; grid-template-columns: 62px 1fr auto; gap: 12px; align-items: center; padding-block: 14px; border-bottom: 1px solid var(--border);
+.row { display: grid; grid-template-columns: 72px 1fr auto; gap: 12px; align-items: center; padding-block: 14px; border-bottom: 1px solid var(--border);
   text-decoration: none; color: inherit }
 .row:active { background: var(--muted) }
 .time { font-weight: 700; font-size: 16px; font-variant-numeric: tabular-nums; align-self: start; padding-top: 1px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px }
 .time small { display: block; font-size: 11px; font-weight: 500; color: var(--fg-3); margin-top: -2px }
 .body { min-width: 0; display: flex; flex-direction: column; gap: 5px }
-.title { font-weight: 600; font-size: 15px; overflow-wrap: anywhere }
+.title { font-weight: 600; font-size: 15px; word-break: keep-all; overflow-wrap: anywhere }
 .tags { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 12px; color: var(--fg-3) }
 .tags .on { color: var(--fg-2); font-weight: 600 }
 .tags .dot { color: var(--border) }
@@ -102,6 +103,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .status.full { background: var(--muted); color: var(--fg-3) }
 .row.full .title, .row.full .time { color: var(--fg-3) }
 
+.retry { appearance: none; margin-top: 12px; height: 36px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer }
 .empty { padding: 40px 0; text-align: center; color: var(--fg-3) }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
@@ -118,7 +120,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
   </div>
   <div class="wrap gutter"><div class="dates" id="dates" role="tablist" aria-label="날짜"></div></div>
   <div class="wrap gutter filters">
-    <div class="pill"><span class="sel"><select id="from" aria-label="시작 시간 부터"></select></span>~<span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
+    <div class="pill"><span class="sel"><select id="from" aria-label="시작 시간 부터"></select></span><span class="tilde">~</span><span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
     <div class="pill"><span class="sel"><select id="sort" aria-label="정렬"><option value="rec">추천순</option><option value="time">시간순</option></select></span></div>
     <button class="pill toggle" id="ai" type="button" aria-pressed="false">AI리포트</button>
     <button class="pill toggle" id="nofull" type="button" aria-pressed="false">마감 제외</button>
@@ -194,7 +196,7 @@ function levelHtml(it) {
   // 초록: 내 레벨보다 낮거나, 내 레벨과 같은데 높은 쪽이 아닌 매치만
   const good = it.atOrBelowMine;
 
-  return `<div class="lv"><b class="lvname${good ? " good" : ""}">${esc(L)}</b>${pos ? `<span class="tier" role="img" aria-label="${L} 중 ${pos[1]}" title="${L} 중 ${pos[1]}">${pos[0]}</span>` : ""}</div>`;
+  return `<div class="lv"><b class="lvname${good ? " good" : ""}">${esc(L)}</b>${pos ? `<span class="tier" role="img" aria-label="${esc(L)} 중 ${pos[1]}" title="${esc(L)} 중 ${pos[1]}">${pos[0]}</span>` : ""}</div>`;
 }
 function rowHtml(it) {
   const status = it.full ? ["full", "마감"] : it.closingSoon ? ["hurry", "마감임박"] : ["available", "신청가능"];
@@ -203,7 +205,7 @@ function rowHtml(it) {
     it.sex === 1 ? `<span>남자</span>` : `<span>남녀 모두</span>`,
   ].filter(Boolean).join(`<span class="dot">·</span>`);
   return `<li><a class="row${it.full ? " full" : ""}" href="${esc(it.url)}" target="_blank" rel="noopener">
-    <div class="time"><span>${esc(it.time)}<small>${esc(it.full ? "" : dday(it.deadlineAt))}</small></span>${levelHtml(it)}</div>
+    <div class="time"><span>${esc(it.time)}<small>${it.full ? "&nbsp;" : esc(dday(it.deadlineAt))}</small></span>${levelHtml(it)}</div>
     <div class="body">
       <div class="title">${esc(it.title)}${it.aiReport ? `<span class="badge ai">AI리포트</span>` : ""}</div>
       <div class="tags">${tags}</div>
@@ -249,6 +251,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
 let seq = 0;
 async function load() {
   const my = ++seq;
+  if (!last) $("main").innerHTML = `<p class="empty">불러오는 중…</p>`;
   try {
     let data = await api(`/api/board?date=${prefs.date || kstToday()}&from=${prefs.from}&to=${prefs.to}&my=${prefs.my}`);
     if (my !== seq) return;
@@ -257,7 +260,9 @@ async function load() {
     if (my !== seq) return;
     save(); render(data);
   } catch (e) {
-    $("main").innerHTML = `<p class="empty">불러오지 못했어요: ${esc(e.message)}</p>`;
+    if (my !== seq) return;
+    $("main").innerHTML = `<div class="empty">매치를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br><button class="retry" id="retry" type="button">다시 시도</button></div>`;
+    $("retry").onclick = load;
   }
 }
 
