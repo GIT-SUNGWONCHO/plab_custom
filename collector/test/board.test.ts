@@ -143,3 +143,13 @@ test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나�
   assert.equal(board.find((x) => x.id === 5)!.enoughPlayers, false);
   assert.equal(board.find((x) => x.id === 2)!.estimate?.tier, "high");
 });
+
+test("초록 아닌 매치도 시작 시각 순 (레벨 낮은 순 아님)", () => {
+  const S = new Map<number, SnapLevel[]>([
+    [1, [snap("아마추어4", { a: 10 })]],
+    [2, [snap("아마추어5", { a: 10 })]],
+    [3, [snap("아마추어4", { a: 10 })]],
+  ]);
+  const rows = [row({ id: 1, kst_time: "17:00" }), row({ id: 2, kst_time: "10:00" }), row({ id: 3, kst_time: "12:00" })];
+  assert.deepEqual(buildBoard(rows, S, F).map((x) => x.id), [2, 3, 1]);
+});

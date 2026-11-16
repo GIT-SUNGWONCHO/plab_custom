@@ -1,12 +1,10 @@
 // 매치 보드: 거르기 + 정렬 (순수 함수)
 //
 // 1. 거르기: 날짜·시작 시간대, 참가 레벨 제한 없는(일반) 매치만, 여자 매치 제외
-// 0. 평균이 내 레벨 이하인 매치 먼저 (내 레벨과 같으면 그 레벨 중 높은 쪽은 제외)
-//    → 이 그룹 안에서는 마감임박(신청 15명 이상) 먼저, 그다음 경기 시작 시각 순
-// 그 밖의 매치:
-// 1. 마감임박 먼저
-// 2. 레벨 칸 (낮을수록 위)
-// 3. 같은 칸이면 6vs6 먼저 (AI리포트는 정렬에 안 씀 — 화면에서 필터로)
+// 1. 평균이 내 레벨 이하인 매치(초록) 먼저 (내 레벨과 같으면 그 레벨 중 높은 쪽은 제외), 그다음 나머지
+// 2. 각 그룹 안에서 마감임박(신청 15명 이상) 먼저
+// 3. 경기 시작 시각 순
+// 4. 같은 시각이면: 레벨 칸 낮은 순 → 6vs6 → 신청 10명 이상 (AI리포트는 정렬에 안 씀 — 화면에서 필터로)
 // 4. 그다음 신청 인원 10명 미만은 아래로
 // 5. 그래도 같으면 경기 시작이 빠른 순
 // 마감된 매치도 같은 규칙으로 정렬 (화면에서 기본은 '마감 제외')
@@ -120,11 +118,10 @@ export function buildBoard(rows: BoardMatchRow[], snapsByMatch: Map<number, Snap
     (a, b) =>
       Number(b.atOrBelowMine) - Number(a.atOrBelowMine) ||
       Number(b.closingSoon) - Number(a.closingSoon) ||
-      (a.atOrBelowMine ? a.time.localeCompare(b.time) : 0) ||
-      (a.bucket ?? Infinity) - (b.bucket ?? Infinity) ||
+      a.time.localeCompare(b.time) ||
+      (a.bucket ?? 99) - (b.bucket ?? 99) ||
       b.preference - a.preference ||
       Number(b.enoughPlayers) - Number(a.enoughPlayers) ||
-      a.time.localeCompare(b.time) ||
       a.id - b.id,
   );
 }
