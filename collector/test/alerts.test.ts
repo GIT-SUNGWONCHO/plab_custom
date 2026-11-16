@@ -59,7 +59,8 @@ test("초록 + 10명 이상 → '모임' 알림 한 번, 초록 아님·10명 �
   const r = await runAlerts(asD1(db), ntfy, NOW);
   assert.equal(r.sent, 1);
   assert.equal(sent[0].topic, TOPIC);
-  assert.match(sent[0].title, /12:00 아마3 매치 12명 모임/);
+  assert.equal(sent[0].title, "플랩레이더 · 12:00 아마3 · 12명 모임");
+  assert.deepEqual((sent[0] as any).tags, ["soccer"]);
   assert.equal(sent[0].click, "https://www.plabfootball.com/match/1/");
   // 다시 돌려도 같은 알림은 안 감
   await runAlerts(asD1(db), ntfy, new Date(NOW.getTime() + 60_000));
@@ -77,7 +78,7 @@ test("마감임박(15명+)이 되면 따로 알림, 처음부터 15명이면 마
   const titles = sent.map((m) => m.title);
   assert.equal(titles.length, 3);
   assert.match(titles[0], /모임/);
-  assert.equal(titles.filter((t) => t.startsWith("마감임박")).length, 2);
+  assert.equal(titles.filter((t) => t.startsWith("플랩레이더 · 마감임박")).length, 2);
 });
 
 test("구독 조건(6vs6만·AI리포트만)이 알림에도 적용", async () => {
@@ -118,7 +119,7 @@ test("API: 구독 저장·조회·테스트·삭제 (토큰 없이)", async () =
   const got = (await (await call(`/api/alerts?topic=${TOPIC}`)).json()) as { only6: number; time_to: string };
   assert.deepEqual([got.only6, got.time_to], [1, "17:00"]);
   assert.equal((await call("/api/alerts/test", "POST", { topic: TOPIC })).status, 200);
-  assert.equal(sent.at(-1)!.title, "플랩레이더 테스트 알림");
+  assert.equal(sent.at(-1)!.title, "플랩레이더 · 테스트 알림");
   assert.equal((await call("/api/alerts/test", "POST", { topic: TOPIC })).status, 429); // 1분 제한
   assert.equal((await call(`/api/alerts?topic=${TOPIC}`, "DELETE")).status, 200);
   assert.equal(await (await call(`/api/alerts?topic=${TOPIC}`)).json(), null);
