@@ -140,7 +140,16 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .btn.danger { background: transparent; color: var(--red); font-weight: 600 }
 .note { font-size: 13px; color: var(--fg-3); min-height: 18px }
 .lv { cursor: pointer }
-.hist-head { display: flex; flex-direction: column; gap: 2px }
+.hist-head { position: sticky; top: -18px; z-index: 2; background: var(--surface); margin-top: -18px; padding-top: 18px; padding-bottom: 6px;
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: start }
+.hist-head h2 { grid-column: 1 }
+.hist-head .sub { grid-column: 1 }
+.x-btn { grid-column: 2; grid-row: 1 / span 2; appearance: none; border: 0; background: var(--muted); color: var(--fg-2); width: 34px; height: 34px;
+  border-radius: 50%; font-size: 16px; line-height: 34px; cursor: pointer }
+.hist-log summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; color: var(--fg-2); padding: 8px 0 }
+.hist-log summary::-webkit-details-marker { display: none }
+.hist-log summary::after { content: " ▾"; color: var(--fg-3) }
+.hist-log[open] summary::after { content: " ▴" }
 .hist-head .sub { font-size: 13px; color: var(--fg-3) }
 .readout { font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; min-height: 18px }
 .readout b { color: var(--fg) }
@@ -154,10 +163,10 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .chart .dot { fill: var(--fg); stroke: var(--surface); stroke-width: 2 }
 .chart .cross { stroke: var(--fg-3); stroke-width: 1; stroke-dasharray: 3 3 }
 .log { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; border-top: 1px solid var(--border) }
-.log li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border) }
+.log li { display: grid; grid-template-columns: auto auto auto 1fr; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border); white-space: nowrap }
 .log li span:first-child { color: var(--fg-3) }
 .log .chg { color: var(--fg); font-weight: 700 }
-.log .who { grid-column: 1 / -1; margin-top: -3px; font-size: 12px; color: var(--fg-3) }
+.log .who { text-align: right; font-size: 12px; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; min-width: 0 }
 .log .who b { color: var(--fg-2); font-weight: 600 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
 </style>
@@ -305,10 +314,10 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
   <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
-  <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이. 평가된 신청자가 없으면 –.</p>
-  <p><b>▲ ● ▼</b> 그 2.5~3.5 안에서 추정한 평균 범위의 가운데가 3.0보다 위 / 거의 3.0 / 아래라는 뜻.
+  <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이예요. 평가된 신청자가 없으면 –.</p>
+  <p><b>▲ ● ▼</b> 그 범위 안에서 추정한 평균 점수가 가운데(아마3이면 2.55)보다 위 / 거의 가운데 / 아래라는 뜻.
     사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
-  <p><b>아이콘 없음</b> 평균 표시가 한 번도 안 바뀌어서 2.5~3.5 중 어디인지 알 수 없는 매치. 정렬할 땐 가운데로 쳐요.</p>
+  <p><b>아이콘 없음</b> 아직 범위를 좁힐 단서가 없어서 어디쯤인지 알 수 없는 매치. 정렬할 땐 가운데로 쳐요.</p>
   <p><b>빨간 신청 인원</b> 1~9명. 한 명만 들어와도 평균이 크게 흔들려요.</p>
   <p><b>초록 레벨</b> 평균이 아마3 이하인 매치 (아마3 중 높은 쪽 ▲은 제외).</p>
   <p><b>마감 3시간 전</b> 신청 마감(경기 10분 전)까지 남은 시간. 마감 24시간 이내일 때만 보여요.</p>
@@ -434,6 +443,7 @@ $("bell").onclick = openSheet;
 // ---------- 레벨·인원 추이 ----------
 const lvNum = (l) => { const i = LV.indexOf(l); return i > 0 ? i : null; }; // 루키(0)/없음 = 평균 없음
 const kst = (iso) => new Date(Date.parse(iso) + 9 * 3600e3);
+const fmtTsShort = (iso) => { const d = kst(iso); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
 const fmtTs = (iso) => { const d = kst(iso); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WD[d.getUTCDay()]}) ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`; };
 
 function stepChart(el, pts, t0, t1, dom, ticks, h, xTicks) {
@@ -466,10 +476,10 @@ function rangeText(lo, hi) {
   return pa === pb ? `${a}~${b.slice(pb.length)}` : `${a}~${b}`;
 }
 function whoHtml(p) {
-  if (!p.changes.length) return "";
+  if (!p.changes.length) return `<span class="who"></span>`;
   const parts = p.changes.map((c) => {
     const sign = c.delta > 0 ? `+${c.delta}` : `${c.delta}`;
-    const guess = p.person && p.person.grade === c.grade ? ` (${rangeText(p.person.lo, p.person.hi)}로 추정)` : "";
+    const guess = p.person && p.person.grade === c.grade ? ` (${rangeText(p.person.lo, p.person.hi)} 추정)` : "";
     return `<b>${sign} ${GRADE_KO[c.grade] || c.grade}</b>${guess}`;
   });
   return `<span class="who">${parts.join(" · ")}</span>`;
@@ -491,20 +501,22 @@ async function openHistory(id) {
   const t0 = pts.length ? pts[0].t : Date.now(), t1 = Math.max(t0 + 3600e3, Math.min(Date.now(), start));
   const e = data.estimate;
   // 아마추어 레벨일 때만 '아마 2.6~3.1'처럼 소수로 보여줌 (범위가 레벨 하나보다 좁을 때)
-  const range = e && e.narrowed && e.labelNum >= 4 && e.labelNum <= 8 ? ` · 추정 평균 아마${(e.lo - 3).toFixed(1)}~${(e.hi - 3).toFixed(1)}` : "";
+  // 플랩 점수로 추정 평균 (아마3 = 2.5~2.6점). 범위가 레벨 구간보다 좁을 때만
+  const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` · 추정 평균 ${e.lo.toFixed(2)}~${e.hi.toFixed(2)}점` : "";
   sheet.innerHTML = `
-    <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2>
+    <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기">✕</button>
       <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 지금 평균 ${esc(m.average_level && m.average_level !== "루키" ? short(m.average_level) : "–")} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명${range}</span></div>
     ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
     <div class="readout" id="readout" aria-live="polite"></div>
     <div class="chart"><h3>평균 레벨</h3><div id="c-lv"></div></div>
     <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
-    ${pts.length ? `<ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 40).map((p, i, arr) => {
+    ${pts.length ? `<details class="hist-log"><summary>상세 이력 ${pts.length}건</summary><ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 60).map((p, i, arr) => {
       const prev = arr[i + 1];
-      return `<li><span>${fmtTs(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span>${whoHtml(p)}</li>`;
-    }).join("")}</ul>` : ""}
+      return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span>${whoHtml(p)}</li>`;
+    }).join("")}</ul></details>` : ""}
     <button class="btn sub" id="hist-close" type="button">닫기</button>`;
   $("hist-close").onclick = () => bg.remove();
+  $("hist-x").onclick = () => bg.remove();
   if (pts.length < 2) return;
 
   // 평균 레벨: 데이터 범위 ±1 정수 레벨

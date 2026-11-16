@@ -14,11 +14,12 @@ function snap(avg: string | null, g: { r?: number; b?: number; a?: number; s?: n
   };
 }
 
-test("스냅샷 하나면 표시 레벨의 반올림 구간 전체", () => {
+test("스냅샷 하나면 표시 레벨의 반올림 구간 전체 (플랩 점수)", () => {
+  // 아마추어 10명 평균 아마3 → 평균 점수 2.45 이상 2.65 미만 → 합(0.1점 단위) 245~264
   const e = estimateLevel([snap("아마추어3", { a: 10 })])!;
   assert.equal(e.labelNum, 6);
-  // 합은 정수이고 평균 < 6.5 → 10명이면 합 55~64 → 평균 5.5~6.4
-  assert.ok(Math.abs(e.lo - 5.5) < 1e-6 && Math.abs(e.hi - 6.4) < 1e-6, `${e.lo}~${e.hi}`);
+  assert.ok(Math.abs(e.lo - 2.45) < 1e-9 && Math.abs(e.hi - 2.64) < 1e-9, `${e.lo}~${e.hi}`);
+  assert.deepEqual([e.bandLo, e.bandHi], [2.45, 2.65]);
   assert.equal(e.rated, 10);
   assert.deepEqual(levelBucket(e), { bucket: 19, tier: "mid", narrowed: false });
 });
@@ -30,14 +31,13 @@ test("루키는 평균에서 빠짐", () => {
 });
 
 test("평균이 3→4로 바뀌는 순간 = 3과 4의 경계 근처라는 정보", () => {
-  // 아마추어 10명 평균 아마3 (합 55~65) → 아마추어 1명 추가 후 아마4 (평균 ≥ 6.5 → 합 ≥ 71.5)
-  // 새 사람은 최대 8 → 이전 합 ≥ 64(정수), 이후 합 ∈ [72, 73]
+  // 아마추어 10명 아마3 (합 245~264) → 1명 추가 후 아마4 (11명, 합 292~313)
+  // 새 사람은 최대 3.0 → 합 ≤ 264+30 = 294 → 평균 2.65~2.67 → 아마4(2.65~2.85) 중 낮은 쪽
   const e = estimateLevel([snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 })])!;
   assert.equal(e.labelNum, 7);
-  assert.ok(Math.abs(e.lo - 72 / 11) < 1e-6, `lo=${e.lo}`); // 합은 정수라 71.5 → 72
-  assert.ok(e.hi <= 73 / 11 + 1e-6, `hi=${e.hi}`);
+  assert.ok(Math.abs(e.lo - 292 / 110) < 1e-9 && Math.abs(e.hi - 294 / 110) < 1e-9, `${e.lo}~${e.hi}`);
   const b = levelBucket(e);
-  assert.equal(b.tier, "low"); // 아마4 중 낮은 편
+  assert.equal(b.tier, "low");
   assert.equal(b.narrowed, true);
 });
 
@@ -45,7 +45,7 @@ test("다시 3으로 내려오면 '높은 3'", () => {
   // 위 상황에서 아마추어 1명이 빠져 다시 아마3 → 합 ∈ [63.5, 65) / 10
   const e = estimateLevel([snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 }), snap("아마추어3", { a: 10 })])!;
   assert.equal(e.labelNum, 6);
-  assert.ok(e.lo >= 6.35 - 1e-6, `lo=${e.lo}`);
+  assert.ok(e.lo >= 2.62 - 1e-9, `lo=${e.lo}`); // 합 262~264 → 2.62~2.64
   assert.equal(levelBucket(e).tier, "high");
 });
 
@@ -163,27 +163,26 @@ test("신청 마감 시각이 지난 매치는 '마감'으로 (수집이 멈춰 
   assert.deepEqual([after.full, after.closingSoon], [true, false]);
 });
 
-test("레벨 합은 정수: 1명 평균 아마1이면 정확히 아마1 (높은 쪽 아님)", () => {
+test("1명 평균 아마1이면 점수 2.1~2.2 → 아마1 한가운데, 높은 쪽 아님", () => {
   const e = estimateLevel([snap("아마추어1", { a: 1 })])!;
-  assert.equal(e.lo, 4);
-  assert.equal(e.hi, 4);
+  assert.ok(Math.abs(e.lo - 2.1) < 1e-9 && Math.abs(e.hi - 2.2) < 1e-9);
   assert.equal(levelBucket(e).tier, "mid");
 });
 
 test("●는 구간이 아주 좁을 때만 (넓으면 표시 없음)", () => {
-  // 아마추어 6명 평균 아마3 → 합 33~38 → 5.5~6.33 정도, 폭이 넓어 '모름'
   const wide = estimateLevel([snap("아마추어3", { a: 6 })])!;
   assert.equal(levelBucket(wide).narrowed, false);
-  // 1명 아마1 → 정확히 4.0 → ●
-  const exact = estimateLevel([snap("아마추어1", { a: 1 })])!;
-  assert.deepEqual([levelBucket(exact).tier, levelBucket(exact).narrowed], ["mid", true]);
+  // 레벨 폭(0.2)의 30% 이하로 좁고 가운데면 ●
+  const narrow = { lo: 2.54, hi: 2.57, label: "아마추어3", labelNum: 6, bandLo: 2.45, bandHi: 2.65, rated: 10 };
+  assert.deepEqual([levelBucket(narrow).tier, levelBucket(narrow).narrowed], ["mid", true]);
 });
 
-test("한 명이 들어와 평균이 3→4로 오르면 그 사람은 아마5", async () => {
+test("한 명이 들어와 평균이 3→4로 오르면 그 사람은 아마4~5", async () => {
   const { traceLevels } = await import("../src/estimate.ts");
   const t = traceLevels([snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 })]);
   assert.deepEqual(t[1].changes, [{ grade: "amateur", delta: 1 }]);
-  assert.deepEqual(t[1].person, { grade: "amateur", delta: 1, lo: 8, hi: 8 });
+  // 합이 264 이하 → 292 이상으로 → 새 사람 ≥ 2.8 (아마4 상단 이상) → 아마4~5
+  assert.deepEqual(t[1].person, { grade: "amateur", delta: 1, lo: 7, hi: 8 });
   // 평균이 안 바뀐 입장은 등급만 알고 범위는 등급 전체 → person 없음
   const t2 = traceLevels([snap("아마추어3", { a: 10 }), snap("아마추어3", { a: 11 })]);
   assert.deepEqual(t2[1].changes, [{ grade: "amateur", delta: 1 }]);
