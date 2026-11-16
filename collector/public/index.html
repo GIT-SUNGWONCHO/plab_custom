@@ -59,6 +59,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .pill { cursor: pointer }
 .filters > .pill { flex: 1 1 auto; justify-content: center }
 .pill.toggle { appearance: none; font: inherit; font-size: 11.5px; font-weight: 500; letter-spacing: -0.02em; padding: 0 5.5px; color: var(--fg-3) }
+#minp-pill.on, #minp-pill.on .sel select { color: var(--blue) }
+#minp-pill.on { background: var(--blue-soft); border-color: var(--blue) }
 .pill.toggle[aria-pressed="true"] { background: var(--blue-soft); border-color: var(--blue); color: var(--blue) }
 .pill .tilde { margin: 0 }
 .pill .k { font-size: 12px; color: var(--fg-3); font-weight: 500 }
@@ -176,7 +178,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
     <div class="pill"><span class="sel"><select id="sort" aria-label="정렬"><option value="rec">추천</option><option value="time">시간</option></select></span></div>
     <button class="pill toggle" id="ai" type="button" aria-pressed="false" aria-label="AI리포트 매치만">AI</button>
     <button class="pill toggle" id="v6" type="button" aria-pressed="false">6vs6</button>
-    <button class="pill toggle" id="p10" type="button" aria-pressed="false" aria-label="신청 10명 이상만">10명+</button>
+    <div class="pill" id="minp-pill"><span class="sel"><select id="minp" aria-label="신청 인원"><option value="0">인원</option><option value="1">1명+</option><option value="10">10명+</option></select></span></div>
     <button class="pill toggle" id="tf" type="button" aria-pressed="false">더에프</button>
     <button class="pill toggle" id="nofull" type="button" aria-pressed="false">마감제외</button>
   </div>
@@ -190,7 +192,7 @@ const short = (l) => (l || "").replace("아마추어", "아마").replace("세미
 const WD = ["일","월","화","수","목","금","토"];
 const KEY = "plab-radar-board-v1";
 // my: 내 레벨 (초록 표시 기준, 아마3 = 6)
-let prefs = { v: 2, from: "10:00", to: "17:00", date: "", my: 6, sort: "rec", aiOnly: false, only6: false, onlyTF: false, only10: false, hideFull: true };
+let prefs = { v: 2, from: "10:00", to: "17:00", date: "", my: 6, sort: "rec", aiOnly: false, only6: false, onlyTF: false, minPeople: 0, hideFull: true };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
   if (!saved.v) delete saved.hideFull; // v2부터 '마감 제외'가 기본값
@@ -208,7 +210,9 @@ $("ai").setAttribute("aria-pressed", String(prefs.aiOnly));
 $("nofull").setAttribute("aria-pressed", String(prefs.hideFull));
 $("v6").setAttribute("aria-pressed", String(prefs.only6));
 $("tf").setAttribute("aria-pressed", String(prefs.onlyTF));
-$("p10").setAttribute("aria-pressed", String(prefs.only10));
+if (prefs.only10) { prefs.minPeople = 10; delete prefs.only10; } // 예전 '10명+' 버튼 설정 이어받기
+$("minp").value = String(prefs.minPeople);
+$("minp-pill").classList.toggle("on", prefs.minPeople > 0);
 
 function kstToday() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); }
 function dday(iso) {
@@ -279,7 +283,7 @@ function render(data) {
   $("updated").textContent = ago(data.updated_at);
   renderDates(data.dates);
   // 추천순은 서버 정렬 그대로, 시간순은 시작 시각 → 구장명
-  const base = data.items.filter((x) => (!prefs.aiOnly || x.aiReport) && (!prefs.only6 || x.is6v6) && (!prefs.onlyTF || x.title.includes("더에프필드")) && (!prefs.only10 || x.confirm >= 10) && (!prefs.hideFull || !x.full));
+  const base = data.items.filter((x) => (!prefs.aiOnly || x.aiReport) && (!prefs.only6 || x.is6v6) && (!prefs.onlyTF || x.title.includes("더에프필드")) && x.confirm >= prefs.minPeople && (!prefs.hideFull || !x.full));
   const items = prefs.sort === "time"
     ? [...base].sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title))
     : base;
@@ -293,7 +297,8 @@ let helpOpen = false;
 
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
   <p><b>추천순</b> 평균 아마3 이하(초록) 매치 먼저, 그다음 나머지. 각각 마감임박 → 이른 시각 순 (같은 시각이면 레벨 낮은 순 → 6vs6 → 신청 10명 이상).</p>
-  <p><b>AI(리포트) · 6vs6 · 10명+ · 더에프 버튼</b> 누르면 그 매치만 보여요 (더에프 = 영등포 더에프필드). 여러 개 켜면 모두 해당하는 매치만.</p>
+  <p><b>인원 ▾</b> 1명+ / 10명+ 고르면 신청 인원이 그 이상인 매치만 보여요.</p>
+  <p><b>AI(리포트) · 6vs6 · 더에프 버튼</b> 누르면 그 매치만 보여요 (더에프 = 영등포 더에프필드). 여러 개 켜면 모두 해당하는 매치만.</p>
   <p><b>마감 제외 버튼</b> 기본으로 켜져 있어 마감된 매치를 숨겨요. 끄면 마감 매치도 같은 순서 안에 섞여 보여요.</p>
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
@@ -336,7 +341,7 @@ $("dates").addEventListener("click", (e) => { const b = e.target.closest(".date"
 $("from").onchange = (e) => { prefs.from = e.target.value; if (prefs.from > prefs.to) { prefs.to = prefs.from; $("to").value = prefs.to; } save(); load(); };
 $("to").onchange = (e) => { prefs.to = e.target.value; if (prefs.to < prefs.from) { prefs.from = prefs.to; $("from").value = prefs.from; } save(); load(); };
 $("sort").onchange = (e) => { prefs.sort = e.target.value; save(); if (last) render(last); };
-$("p10").onclick = () => { prefs.only10 = !prefs.only10; $("p10").setAttribute("aria-pressed", String(prefs.only10)); save(); if (last) render(last); };
+$("minp").onchange = (e) => { prefs.minPeople = Number(e.target.value); $("minp-pill").classList.toggle("on", prefs.minPeople > 0); save(); if (last) render(last); };
 $("tf").onclick = () => { prefs.onlyTF = !prefs.onlyTF; $("tf").setAttribute("aria-pressed", String(prefs.onlyTF)); save(); if (last) render(last); };
 $("v6").onclick = () => { prefs.only6 = !prefs.only6; $("v6").setAttribute("aria-pressed", String(prefs.only6)); save(); if (last) render(last); };
 $("nofull").onclick = () => { prefs.hideFull = !prefs.hideFull; $("nofull").setAttribute("aria-pressed", String(prefs.hideFull)); save(); if (last) render(last); };
