@@ -15,7 +15,7 @@
   --bg: #ffffff; --surface: #ffffff; --muted: #f6f7f3; --border: #eaebe5;
   --fg: #0f1729; --fg-2: #4d5563; --fg-3: #65758b;
   --brand: #a6f56f; --brand-soft: #edf9e5; --brand-text: #36701a; --black: #171717; --on-black: #ffffff;
-  --blue: #1570ff; --blue-soft: #ecf6ff; --red: #ff4029; --red-soft: #fff0ed; --sat: #1570ff; --sun: #ff4029;
+  --blue: #1570ff; --blue-soft: #ecf6ff; --red: #e5331c; --red-strong: #e5331c; --red-soft: #fff0ed; --sat: #1570ff; --sun: #ff4029;
   --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   color-scheme: light;
 }
@@ -23,7 +23,7 @@
   --bg: #171717; --surface: #202020; --muted: #262626; --border: #2f2f2f;
   --fg: #ededed; --fg-2: #c4c4c4; --fg-3: #a0a0a0;
   --brand-soft: #20351b; --brand-text: #a6f56f; --black: #ededed; --on-black: #171717;
-  --blue: #4492ff; --blue-soft: #14243d; --red: #ff6a55; --red-soft: #3a1d18; --sat: #4492ff; --sun: #ff6a55;
+  --blue: #4492ff; --blue-soft: #14243d; --red: #ff6a55; --red-strong: #d92d18; --red-soft: #3a1d18; --sat: #4492ff; --sun: #ff6a55;
   color-scheme: dark } }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent }
 html, body { margin: 0; overflow-x: clip; touch-action: pan-y; -webkit-text-size-adjust: 100% }
@@ -32,7 +32,9 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font); font-s
 .wrap { max-width: 640px; margin: 0 auto }
 .gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
 
-header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-top: env(safe-area-inset-top, 0px); border-bottom: 1px solid var(--border) }
+header.top { background: var(--bg); padding-top: env(safe-area-inset-top, 0px) }
+.stick { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border) }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 11; background: var(--bg) }
 .bar { display: flex; align-items: center; gap: 8px; height: 52px }
 .logo { font-weight: 800; font-size: 19px; letter-spacing: -0.03em; display: flex; align-items: center; gap: 6px }
 .logo i { width: 10px; height: 10px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft) }
@@ -98,8 +100,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .ppl { font-size: 13px; color: var(--fg-3); font-variant-numeric: tabular-nums }
 .ppl.thin { color: var(--red) }
 .status { text-align: center; min-width: 72px; height: 34px; line-height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap }
-.status.available { background: var(--brand); color: #171717 }
-.status.hurry { background: var(--red); color: #ffffff }
+.status.available { background: var(--brand-soft); color: var(--brand-text) }
+.status.hurry { background: var(--red-strong); color: #ffffff }
 .status.full { background: var(--muted); color: var(--fg-3) }
 .row.full .title, .row.full .time { color: var(--fg-3) }
 
@@ -118,6 +120,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
       <button class="icon-btn" id="reload" type="button" aria-label="새로고침">↻</button>
     </div>
   </div>
+</header>
+<div class="stick">
   <div class="wrap gutter"><div class="dates" id="dates" role="tablist" aria-label="날짜"></div></div>
   <div class="wrap gutter filters">
     <div class="pill"><span class="sel"><select id="from" aria-label="시작 시간 부터"></select></span><span class="tilde">~</span><span class="sel"><select id="to" aria-label="시작 시간 까지"></select></span></div>
@@ -125,7 +129,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
     <button class="pill toggle" id="ai" type="button" aria-pressed="false">AI리포트</button>
     <button class="pill toggle" id="nofull" type="button" aria-pressed="false">마감 제외</button>
   </div>
-</header>
+</div>
 
 <main class="wrap gutter" id="main"></main>
 
@@ -189,7 +193,7 @@ function renderDates(dates) {
 
 function levelHtml(it) {
   const e = it.estimate;
-  if (!e) return `<div class="lv"><span class="k">평균 없음</span></div>`;
+  if (!e) return `<div class="lv"><span class="k" aria-label="평균 없음">–</span></div>`;
   const L = short(e.label);
   // 레벨 안 위치: ▲ 높은 쪽 · ● 가운데 · ▼ 낮은 쪽 · 모르면 표시 안 함
   const pos = e.narrowed ? { low: ["▼", "낮은 쪽"], mid: ["●", "가운데"], high: ["▲", "높은 쪽"] }[e.tier] : null;
@@ -209,7 +213,7 @@ function rowHtml(it) {
     <div class="body">
       <div class="title">${esc(it.title)}${it.aiReport ? `<span class="badge ai">AI리포트</span>` : ""}</div>
       <div class="tags">${tags}</div>
-      <div class="ppl${it.enoughPlayers ? "" : " thin"}">신청 ${it.confirm}/${it.max ?? "?"}명</div>
+      <div class="ppl${it.confirm > 0 && !it.enoughPlayers ? " thin" : ""}">신청 ${it.confirm}/${it.max ?? "?"}명</div>
     </div>
     <div class="status ${status[0]}">${status[1]}</div></a></li>`;
 }
@@ -238,11 +242,11 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>마감 제외 버튼</b> 기본으로 켜져 있어 마감된 매치를 숨겨요. 끄면 마감 매치도 같은 순서 안에 섞여 보여요.</p>
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
-  <p><b>아마3 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이.</p>
+  <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이. 평가된 신청자가 없으면 –.</p>
   <p><b>▲ ● ▼</b> 그 2.5~3.5 안에서 실제 평균이 높은 쪽 / 가운데 / 낮은 쪽이라는 추정.
     사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
   <p><b>아이콘 없음</b> 평균 표시가 한 번도 안 바뀌어서 2.5~3.5 중 어디인지 알 수 없는 매치. 정렬할 땐 가운데로 쳐요.</p>
-  <p><b>빨간 신청 인원</b> 10명 미만. 한 명만 들어와도 평균이 크게 흔들려요.</p>
+  <p><b>빨간 신청 인원</b> 1~9명. 한 명만 들어와도 평균이 크게 흔들려요.</p>
   <p><b>초록 레벨</b> 평균이 아마3 이하인 매치 (아마3 중 높은 쪽 ▲은 제외).</p>
   <p><b>마감 D-6</b> 신청 마감(경기 10분 전)까지 남은 기간.</p>
   <p><b>AI리포트</b> 플랩이 경기 후 AI 분석 리포트를 주는 매치.</p>
