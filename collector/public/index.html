@@ -50,17 +50,17 @@ header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); paddi
 .date[aria-pressed="true"] { background: var(--black) }
 .date[aria-pressed="true"] b, .date[aria-pressed="true"] span { color: var(--on-black) }
 
-.filters { display: flex; gap: 5px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
+.filters { display: flex; gap: 4px; align-items: center; padding-block: 0 10px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none }
 .filters::-webkit-scrollbar { display: none }
-.pill { display: inline-flex; align-items: center; gap: 3px; height: 30px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--surface); font-size: 13px; color: var(--fg-3); white-space: nowrap; flex: none }
+.pill { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); font-size: 12px; color: var(--fg-3); white-space: nowrap; flex: none }
 .pill { cursor: pointer }
-.pill.toggle { appearance: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg-3) }
+.pill.toggle { appearance: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--fg-3) }
 .pill.toggle[aria-pressed="true"] { background: var(--blue-soft); border-color: var(--blue); color: var(--blue) }
 .pill .k { font-size: 12px; color: var(--fg-3); font-weight: 500 }
 .sel { position: relative; display: inline-flex; align-items: center }
-.sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--fg);
-  padding: 0 11px 0 0; cursor: pointer; font-variant-numeric: tabular-nums }
+.sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--fg);
+  padding: 0 10px 0 0; cursor: pointer; font-variant-numeric: tabular-nums }
 .sel::after { content: "▾"; position: absolute; right: 0; pointer-events: none; font-size: 10px; color: var(--fg-3) }
 
 .help { margin-top: 12px; border-radius: 12px; background: var(--muted) }
@@ -229,7 +229,7 @@ function render(data) {
 let helpOpen = false;
 
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
-  <p><b>추천순</b> 평균 아마3 이하(초록) 먼저 → 마감임박 → 평균 레벨 낮은 순 → 6vs6 → 신청 10명 이상 → 이른 시각. 마감된 매치는 맨 아래.</p>
+  <p><b>추천순</b> 평균 아마3 이하(초록) 먼저, 그 안은 마감임박 → 이른 시각 순. 나머지는 마감임박 → 평균 레벨 낮은 순 → 6vs6 → 신청 10명 이상 → 이른 시각. 마감된 매치는 맨 아래.</p>
   <p><b>AI리포트 버튼</b> 누르면 AI리포트 매치만 보여요.</p>
   <p><b>마감 제외 버튼</b> 누르면 마감된 매치를 숨겨요. 다시 누르면 다시 보여요.</p>
   <p><b>시간순</b> 시작 시각 순. 마감된 매치는 맨 아래.</p>
