@@ -50,27 +50,59 @@ function counts(s: SnapLevel): Counts | null {
   return c;
 }
 
-/** 시간순 스냅샷들로 마지막 시점의 평균 구간 추정. 평가된 참가자가 없으면 null. */
-export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
+export type GradeName = Grade;
+
+export interface TraceStep {
+  /** 이 시점의 평균 추정 (평가된 참가자가 없거나 모순이면 null) */
+  estimate: Estimate | null;
+  /** 직전 스냅샷 대비 등급별 인원 변화 (루키 포함). 0인 등급은 빠짐 */
+  changes: { grade: GradeName; delta: number }[];
+  /**
+   * 한 명만 들어오거나 나갔을 때 그 사람의 레벨 범위 (점수, 정수).
+   * 등급 범위보다 좁혀졌을 때만 값이 있음. 예: 아마추어 +1인데 [7, 8] → 아마4~5
+   */
+  person: { grade: GradeName; delta: 1 | -1; lo: number; hi: number } | null;
+}
+
+const ALL: Grade[] = ["rookie", ...RATED];
+
+/** 스냅샷마다 평균 추정과 들어오고 나간 사람 정보를 계산 (레벨 추이 팝업용) */
+export function traceLevels(snaps: SnapLevel[]): TraceStep[] {
   let sum: [number, number] | null = null; // 레벨 합의 가능한 범위
   let prev: Counts | null = null;
-  let last: Estimate | null = null;
+  let prevAll: Record<Grade, number> | null = null;
+  const out: TraceStep[] = [];
 
   for (const s of snaps) {
+    const n = s.confirm ?? 0;
+    // 루키 포함 전체 등급 인원 (변화 표시용)
+    const all = {} as Record<Grade, number>;
+    for (const g of ALL) all[g] = Math.round(((s[`pct_${g}`] ?? 0) * n) / 100);
+    const changes = prevAll
+      ? ALL.map((g) => ({ grade: g, delta: all[g] - prevAll![g] })).filter((x) => x.delta !== 0)
+      : [];
+    prevAll = all;
+
     const L = s.average_level === "루키" ? null : levelToNum(s.average_level);
     const c = counts(s);
-    const rated = c ? RATED.reduce((n, g) => n + c[g], 0) : 0;
+    const rated = c ? RATED.reduce((t, g) => t + c[g], 0) : 0;
     if (L == null || !c || rated === 0) {
-      sum = null; prev = null; last = null;
+      sum = null; prev = null;
+      out.push({ estimate: null, changes, person: null });
       continue;
     }
     // 이번 스냅샷만으로 알 수 있는 범위: 등급 구성 ∩ 반올림된 평균
     const gLo = RATED.reduce((t, g) => t + c[g] * GRADE_RANGES[g][0], 0);
     const gHi = RATED.reduce((t, g) => t + c[g] * GRADE_RANGES[g][1], 0);
     // 레벨은 정수라 합도 정수 → 범위를 정수로 좁힘 (예: 1명 평균 아마1이면 합은 정확히 4)
-    const cur = intRange(Math.max(gLo, rated * (L - 0.5)), Math.min(gHi, rated * (L + 0.5) - EPS));
+    // 평균 L(반올림) → 합 S는 rated*(L-0.5) ≤ S < rated*(L+0.5). 상한은 '미만'이라 정수로는 ceil(...) - 1
+    const labelLo = Math.ceil(rated * (L - 0.5) - EPS);
+    const labelHi = Math.ceil(rated * (L + 0.5) - EPS) - 1;
+    const cur: [number, number] = [Math.max(gLo, labelLo), Math.min(gHi, labelHi)];
 
     let next = cur;
+    let carriedOk = false;
+    const prevSum = sum;
     if (sum && prev) {
       // 등급별 증감만큼 합이 움직일 수 있는 범위
       let dLo = 0, dHi = 0;
@@ -80,16 +112,42 @@ export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
         if (d > 0) { dLo += d * lo; dHi += d * hi; }
         else if (d < 0) { dLo += d * hi; dHi += d * lo; }
       }
-      const carried: [number, number] = [Math.max(cur[0], sum[0] + dLo), Math.min(cur[1], sum[1] + dHi)];
-      const c2 = intRange(carried[0], carried[1]);
-      if (c2[0] <= c2[1]) next = c2; // 모순이면 이번 스냅샷 기준으로 재시작
+      const c2 = intRange(Math.max(cur[0], sum[0] + dLo), Math.min(cur[1], sum[1] + dHi));
+      if (c2[0] <= c2[1]) { next = c2; carriedOk = true; } // 모순이면 이번 스냅샷 기준으로 재시작
     }
-    if (next[0] > next[1]) { sum = null; prev = null; last = null; continue; }
+    if (next[0] > next[1]) {
+      sum = null; prev = null;
+      out.push({ estimate: null, changes, person: null });
+      continue;
+    }
+
+    // 평가 등급에서 정확히 한 명만 바뀌었으면 그 사람의 레벨 범위: 합의 차이 ∩ 등급 범위
+    let person: TraceStep["person"] = null;
+    const ratedChanges = changes.filter((x) => x.grade !== "rookie");
+    if (carriedOk && prevSum && ratedChanges.length === 1 && Math.abs(ratedChanges[0].delta) === 1) {
+      const { grade, delta } = ratedChanges[0];
+      const [gl, gh] = GRADE_RANGES[grade];
+      const [lo, hi] = delta === 1
+        ? [Math.max(gl, next[0] - prevSum[1]), Math.min(gh, next[1] - prevSum[0])]
+        : [Math.max(gl, prevSum[0] - next[1]), Math.min(gh, prevSum[1] - next[0])];
+      if (lo <= hi && (lo > gl || hi < gh)) person = { grade, delta: delta as 1 | -1, lo, hi };
+    }
+
     sum = next;
     prev = c;
-    last = { lo: next[0] / rated, hi: next[1] / rated, label: s.average_level!, labelNum: L, rated };
+    out.push({
+      estimate: { lo: next[0] / rated, hi: next[1] / rated, label: s.average_level!, labelNum: L, rated },
+      changes,
+      person,
+    });
   }
-  return last;
+  return out;
+}
+
+/** 시간순 스냅샷들로 마지막 시점의 평균 구간 추정. 평가된 참가자가 없으면 null. */
+export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
+  const t = traceLevels(snaps);
+  return t.length ? t[t.length - 1].estimate : null;
 }
 
 export type Tier = "low" | "mid" | "high";

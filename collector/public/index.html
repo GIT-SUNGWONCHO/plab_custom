@@ -157,6 +157,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .log li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border) }
 .log li span:first-child { color: var(--fg-3) }
 .log .chg { color: var(--fg); font-weight: 700 }
+.log .who { grid-column: 1 / -1; margin-top: -3px; font-size: 12px; color: var(--fg-3) }
+.log .who b { color: var(--fg-2); font-weight: 600 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
 </style>
 </head>
@@ -302,7 +304,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>마감 제외 버튼</b> 기본으로 켜져 있어 마감된 매치를 숨겨요. 끄면 마감 매치도 같은 순서 안에 섞여 보여요.</p>
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
-  <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요.</p>
+  <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
   <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외, 반올림 값). 아마3이면 실제 평균은 2.5~3.5 사이. 평가된 신청자가 없으면 –.</p>
   <p><b>▲ ● ▼</b> 그 2.5~3.5 안에서 추정한 평균 범위의 가운데가 3.0보다 위 / 거의 3.0 / 아래라는 뜻.
     사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
@@ -455,6 +457,24 @@ function stepChart(el, pts, t0, t1, dom, ticks, h, xTicks) {
   return { x, y, svg: el.firstElementChild, W, L, R };
 }
 
+// 들어오고 나간 사람: "+1 아마추어 (아마4~5로 추정)"
+const GRADE_KO = { rookie: "루키", beginner: "비기너", amateur: "아마추어", semipro: "세미프로", pro: "프로" };
+function rangeText(lo, hi) {
+  const a = short(LV[lo]), b = short(LV[hi]);
+  if (lo === hi) return a;
+  const pa = a.replace(/\d+$/, ""), pb = b.replace(/\d+$/, "");
+  return pa === pb ? `${a}~${b.slice(pb.length)}` : `${a}~${b}`;
+}
+function whoHtml(p) {
+  if (!p.changes.length) return "";
+  const parts = p.changes.map((c) => {
+    const sign = c.delta > 0 ? `+${c.delta}` : `${c.delta}`;
+    const guess = p.person && p.person.grade === c.grade ? ` (${rangeText(p.person.lo, p.person.hi)}로 추정)` : "";
+    return `<b>${sign} ${GRADE_KO[c.grade] || c.grade}</b>${guess}`;
+  });
+  return `<span class="who">${parts.join(" · ")}</span>`;
+}
+
 async function openHistory(id) {
   const bg = document.createElement("div");
   bg.className = "sheet-bg";
@@ -466,7 +486,7 @@ async function openHistory(id) {
   const sheet = bg.firstElementChild;
   if (!data || !data.match) { sheet.innerHTML = `<p class="note">추이를 불러오지 못했어요.</p><button class="btn sub" type="button">닫기</button>`; sheet.querySelector("button").onclick = () => bg.remove(); return; }
   const m = data.match, snaps = data.snapshots;
-  const pts = snaps.map((s) => ({ t: Date.parse(s.ts), lv: lvNum(s.average_level), n: s.confirm, label: s.average_level, ts: s.ts }));
+  const pts = snaps.map((s) => ({ t: Date.parse(s.ts), lv: lvNum(s.average_level), n: s.confirm, label: s.average_level, ts: s.ts, changes: s.changes || [], person: s.person }));
   const start = Date.parse(`${m.kst_date}T${m.kst_time}:00+09:00`);
   const t0 = pts.length ? pts[0].t : Date.now(), t1 = Math.max(t0 + 3600e3, Math.min(Date.now(), start));
   const e = data.estimate;
@@ -481,7 +501,7 @@ async function openHistory(id) {
     <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
     ${pts.length ? `<ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 40).map((p, i, arr) => {
       const prev = arr[i + 1];
-      return `<li><span>${fmtTs(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span></li>`;
+      return `<li><span>${fmtTs(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span>${whoHtml(p)}</li>`;
     }).join("")}</ul>` : ""}
     <button class="btn sub" id="hist-close" type="button">닫기</button>`;
   $("hist-close").onclick = () => bg.remove();

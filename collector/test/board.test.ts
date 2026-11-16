@@ -17,7 +17,8 @@ function snap(avg: string | null, g: { r?: number; b?: number; a?: number; s?: n
 test("스냅샷 하나면 표시 레벨의 반올림 구간 전체", () => {
   const e = estimateLevel([snap("아마추어3", { a: 10 })])!;
   assert.equal(e.labelNum, 6);
-  assert.ok(Math.abs(e.lo - 5.5) < 1e-6 && Math.abs(e.hi - 6.5) < 1e-6);
+  // 합은 정수이고 평균 < 6.5 → 10명이면 합 55~64 → 평균 5.5~6.4
+  assert.ok(Math.abs(e.lo - 5.5) < 1e-6 && Math.abs(e.hi - 6.4) < 1e-6, `${e.lo}~${e.hi}`);
   assert.equal(e.rated, 10);
   assert.deepEqual(levelBucket(e), { bucket: 19, tier: "mid", narrowed: false });
 });
@@ -176,4 +177,18 @@ test("●는 구간이 아주 좁을 때만 (넓으면 표시 없음)", () => {
   // 1명 아마1 → 정확히 4.0 → ●
   const exact = estimateLevel([snap("아마추어1", { a: 1 })])!;
   assert.deepEqual([levelBucket(exact).tier, levelBucket(exact).narrowed], ["mid", true]);
+});
+
+test("한 명이 들어와 평균이 3→4로 오르면 그 사람은 아마5", async () => {
+  const { traceLevels } = await import("../src/estimate.ts");
+  const t = traceLevels([snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 })]);
+  assert.deepEqual(t[1].changes, [{ grade: "amateur", delta: 1 }]);
+  assert.deepEqual(t[1].person, { grade: "amateur", delta: 1, lo: 8, hi: 8 });
+  // 평균이 안 바뀐 입장은 등급만 알고 범위는 등급 전체 → person 없음
+  const t2 = traceLevels([snap("아마추어3", { a: 10 }), snap("아마추어3", { a: 11 })]);
+  assert.deepEqual(t2[1].changes, [{ grade: "amateur", delta: 1 }]);
+  assert.equal(t2[1].person, null);
+  // 루키 입장도 변화에 표시
+  const t3 = traceLevels([snap("아마추어3", { a: 10 }), snap("아마추어3", { a: 10, r: 1 })]);
+  assert.deepEqual(t3[1].changes, [{ grade: "rookie", delta: 1 }]);
 });

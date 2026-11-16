@@ -5,7 +5,7 @@
 import { ntfyFetchWith, sendNtfy, TOPIC_RE } from "./alerts.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
-import { estimateLevel, levelBucket, type SnapLevel } from "./estimate.ts";
+import { levelBucket, traceLevels, type SnapLevel } from "./estimate.ts";
 import { matchUrl, PlabClient, type FetchFn } from "./plab.ts";
 
 export interface Env {
@@ -91,11 +91,15 @@ export async function handleFetch(
       `SELECT ts, confirm, average_level, pct_rookie, pct_beginner, pct_amateur, pct_semipro, pct_pro
        FROM snapshot WHERE match_id = ? ORDER BY ts, id`,
     ).bind(id).all<SnapLevel & { ts: string }>();
-    const est = estimateLevel(snaps);
+    const trace = traceLevels(snaps);
+    const est = trace.length ? trace[trace.length - 1].estimate : null;
     return json({
       match: m,
       estimate: est ? { ...est, ...levelBucket(est) } : null,
-      snapshots: snaps.map((s) => ({ ts: s.ts, confirm: s.confirm, average_level: s.average_level })),
+      snapshots: snaps.map((s, i) => ({
+        ts: s.ts, confirm: s.confirm, average_level: s.average_level,
+        changes: trace[i].changes, person: trace[i].person,
+      })),
     });
   }
   if (!isPublic && !authorized(req, env)) return json({ error: "unauthorized" }, 401);
