@@ -2,14 +2,17 @@
 //  - scheduled: 매분 크론 → 수집기 실행
 //  - fetch: 보드 API(공개) + 관리 API (ADMIN_TOKEN 필요)
 
+import { ntfyFetchWith, sendNtfy, TOPIC_RE } from "./alerts.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
 import type { SnapLevel } from "./estimate.ts";
-import { matchUrl, PlabClient } from "./plab.ts";
+import { matchUrl, PlabClient, type FetchFn } from "./plab.ts";
 
 export interface Env {
   DB: D1Database;
   ADMIN_TOKEN: string;
+  /** ntfy.sh 계정 액세스 토큰 (wrangler secret / 대시보드에서 설정) */
+  NTFY_TOKEN?: string;
 }
 
 const json = (data: unknown, status = 200) =>
@@ -56,7 +59,12 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export async function handleFetch(req: Request, env: Env, client = new PlabClient()): Promise<Response> {
+export async function handleFetch(
+  req: Request,
+  env: Env,
+  client = new PlabClient(),
+  ntfyFetch: FetchFn = ntfyFetchWith(env.NTFY_TOKEN),
+): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
@@ -68,8 +76,60 @@ export async function handleFetch(req: Request, env: Env, client = new PlabClien
     return json({ ok: true, tracking, last_run: last });
   }
   // 보드 조회는 공개 (지인 공유용). 규칙 변경·수동 실행 등 관리 기능만 토큰 필요
-  const isPublic = path === "/api/board" && req.method === "GET";
+  const isPublic = (path === "/api/board" && req.method === "GET") || path === "/api/alerts" || path === "/api/alerts/test";
   if (!isPublic && !authorized(req, env)) return json({ error: "unauthorized" }, 401);
+
+  // --- 알림 구독 (공개: 토픽 자체가 비밀번호 역할)
+  if (path === "/api/alerts") {
+    const topic = req.method === "GET" || req.method === "DELETE"
+      ? url.searchParams.get("topic") ?? ""
+      : "";
+    if (req.method === "GET") {
+      if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
+      return json(await env.DB.prepare("SELECT * FROM alert_sub WHERE topic = ?").bind(topic).first());
+    }
+    if (req.method === "DELETE") {
+      if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM alert_sub WHERE topic = ?").bind(topic),
+        env.DB.prepare("DELETE FROM alert_log WHERE topic = ?").bind(topic),
+      ]);
+      return json({ ok: true });
+    }
+    if (req.method === "PUT") {
+      const b = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+      if (!b || typeof b.topic !== "string" || !TOPIC_RE.test(b.topic)) return json({ error: "topic 형식 오류" }, 400);
+      if (typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return json({ error: "date 필요" }, 400);
+      if (typeof b.from !== "string" || !TIME_RE.test(b.from) || typeof b.to !== "string" || !TIME_RE.test(b.to)) {
+        return json({ error: "from/to: 'HH:MM'" }, 400);
+      }
+      const nowIso = new Date().toISOString();
+      await env.DB.prepare(
+        `INSERT INTO alert_sub (topic, date, time_from, time_to, only6, only_ai, only_tf, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(topic) DO UPDATE SET date = excluded.date, time_from = excluded.time_from, time_to = excluded.time_to,
+           only6 = excluded.only6, only_ai = excluded.only_ai, only_tf = excluded.only_tf, updated_at = excluded.updated_at`,
+      ).bind(b.topic, b.date, b.from, b.to, b.only6 ? 1 : 0, b.onlyAI ? 1 : 0, b.onlyTF ? 1 : 0, nowIso, nowIso).run();
+      return json({ ok: true });
+    }
+    return json({ error: "method" }, 405);
+  }
+  if (path === "/api/alerts/test" && req.method === "POST") {
+    const b = (await req.json().catch(() => null)) as { topic?: unknown } | null;
+    const topic = typeof b?.topic === "string" ? b.topic : "";
+    if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
+    // 등록된 토픽에만, 1분에 한 번
+    const sub = await env.DB.prepare("SELECT topic FROM alert_sub WHERE topic = ?").bind(topic).first();
+    if (!sub) return json({ error: "먼저 알림을 켜 주세요" }, 404);
+    const key = `alert_test:${topic}`;
+    const last = await env.DB.prepare("SELECT value FROM state WHERE key = ?").bind(key).first<string>("value");
+    if (last && Date.now() - Date.parse(last) < 60_000) return json({ error: "1분 뒤에 다시 시도해 주세요" }, 429);
+    await env.DB.prepare("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .bind(key, new Date().toISOString()).run();
+    const ok = await sendNtfy(ntfyFetch, topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: "white_check_mark" })
+      .catch(() => false);
+    return json({ ok }, ok ? 200 : 502);
+  }
 
   // --- 구장 검색: 규칙에 넣을 stadium_group id 찾기
   if (path === "/api/stadiums/search" && req.method === "GET") {

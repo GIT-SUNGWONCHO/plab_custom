@@ -2,16 +2,25 @@
 // 보드 HTML은 텍스트로 번들 (wrangler.toml [[rules]] Text)
 
 import page from "../public/index.html";
+import { ntfyFetchWith, runAlerts } from "./alerts.ts";
 import { runCollector } from "./collector.ts";
 import { handleFetch, type Env } from "./index.ts";
 import { PlabClient } from "./plab.ts";
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const now = new Date(controller.scheduledTime);
     ctx.waitUntil(
-      runCollector(env.DB, new PlabClient(), new Date(controller.scheduledTime)).then((r) => {
+      (async () => {
+        const r = await runCollector(env.DB, new PlabClient(), now);
         if (r.errors.length) console.error("collector errors", r.errors);
-      }),
+        // 수집 직후 알림 판단 (수집 실패와 상관없이 실행)
+        const a = await runAlerts(env.DB, ntfyFetchWith(env.NTFY_TOKEN), now).catch((e) => {
+          console.error("alerts error", e);
+          return null;
+        });
+        if (a && (a.sent || a.failed)) console.log("alerts", a);
+      })(),
     );
   },
   fetch(req: Request, env: Env): Promise<Response> {

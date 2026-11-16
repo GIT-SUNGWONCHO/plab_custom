@@ -8,7 +8,7 @@ export const CONFIG = {
   /** 같은 규칙·날짜를 다시 탐색하는 간격 */
   discoveryIntervalMs: 15 * MINUTE,
   /** 한 번 실행에서 쓸 플랩 요청 상한 (Workers 무료 플랜 subrequest 50개 제한 아래로) */
-  maxRequestsPerRun: 40,
+  maxRequestsPerRun: 38, // + 알림 최대 8건 = 46
   /** 연속 실패가 이만큼 쌓이면 추적 중단 */
   maxPollErrors: 5,
   /** 실행 기록 보관 기간 */

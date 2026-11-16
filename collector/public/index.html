@@ -113,6 +113,29 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .retry { appearance: none; margin-top: 12px; height: 36px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer }
 .empty { padding: 40px 0; text-align: center; color: var(--fg-3) }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+.icon-btn { position: relative }
+.icon-btn.on { background: var(--blue-soft); color: var(--blue) }
+.icon-btn.on::after { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--blue) }
+.sheet-bg { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center }
+.sheet { width: 100%; max-width: 640px; max-height: 88%; overflow-y: auto; background: var(--surface); border-radius: 18px 18px 0 0;
+  padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 14px }
+.sheet h2 { margin: 0; font-size: 18px }
+.sheet p, .sheet ol, .sheet .cond { word-break: keep-all }
+.sheet p { margin: 0; font-size: 14px; color: var(--fg-2) }
+.sheet .cond { background: var(--muted); border-radius: 12px; padding: 10px 12px; font-size: 14px }
+.sheet .cond b { color: var(--fg) }
+.sheet ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--fg-2) }
+.sheet a { color: var(--blue) }
+.topic { display: flex; gap: 6px; align-items: center }
+.topic code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: var(--muted); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--fg) }
+.btns { display: flex; flex-direction: column; gap: 8px }
+.btn { appearance: none; border: 0; border-radius: 12px; height: 46px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  background: var(--black); color: var(--on-black) }
+.btn.sub { background: var(--muted); color: var(--fg); font-weight: 600 }
+.btn.small { height: 36px; padding: 0 12px; font-size: 13px; flex: none }
+.btn.danger { background: transparent; color: var(--red); font-weight: 600 }
+.note { font-size: 13px; color: var(--fg-3); min-height: 18px }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important } }
 </style>
 </head>
@@ -122,6 +145,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
     <div class="bar">
       <div class="logo"><i></i>플랩레이더</div>
       <span class="updated" id="updated"></span>
+      <button class="icon-btn" id="bell" type="button" aria-label="알림 설정">🔔</button>
       <button class="icon-btn" id="reload" type="button" aria-label="새로고침">↻</button>
     </div>
   </div>
@@ -290,6 +314,87 @@ $("nofull").onclick = () => { prefs.hideFull = !prefs.hideFull; $("nofull").setA
 $("ai").onclick = () => { prefs.aiOnly = !prefs.aiOnly; $("ai").setAttribute("aria-pressed", String(prefs.aiOnly)); save(); if (last) render(last); };
 $("reload").onclick = load;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+
+// ---------- 알림 (ntfy) ----------
+let alertSub = null;
+function ensureTopic() {
+  if (!prefs.topic) {
+    const a = new Uint8Array(12); crypto.getRandomValues(a);
+    prefs.topic = "plabradar-" + [...a].map((b) => "abcdefghijkmnpqrstuvwxyz23456789"[b % 32]).join("");
+    save();
+  }
+  return prefs.topic;
+}
+function fmtDate(d) { const dt = new Date(d + "T00:00:00Z"); return `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}(${WD[dt.getUTCDay()]})`; }
+function condText(c) {
+  const t = (x) => (x === "23:59" ? "24" : String(Number(x.slice(0, 2))));
+  const opts = [c.only6 && "6vs6만", c.onlyAI && "AI리포트만", c.onlyTF && "더에프만"].filter(Boolean).join(" · ");
+  return `<b>${fmtDate(c.date)} · ${t(c.from)}~${t(c.to)}시</b>${opts ? " · " + opts : ""}`;
+}
+const currentCond = () => ({ date: prefs.date, from: prefs.from, to: prefs.to, only6: prefs.only6, onlyAI: prefs.aiOnly, onlyTF: prefs.onlyTF });
+const subCond = (s) => ({ date: s.date, from: s.time_from, to: s.time_to, only6: !!s.only6, onlyAI: !!s.only_ai, onlyTF: !!s.only_tf });
+async function refreshBell() {
+  if (!prefs.topic) { $("bell").classList.remove("on"); return; }
+  try { alertSub = await (await fetch(`/api/alerts?topic=${prefs.topic}`)).json(); } catch (e) { alertSub = null; }
+  $("bell").classList.toggle("on", !!alertSub);
+}
+function openSheet() {
+  const topic = ensureTopic();
+  const cur = currentCond();
+  const same = alertSub && JSON.stringify(subCond(alertSub)) === JSON.stringify({ ...cur, only6: !!cur.only6, onlyAI: !!cur.onlyAI, onlyTF: !!cur.onlyTF });
+  const bg = document.createElement("div");
+  bg.className = "sheet-bg";
+  bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <h2 id="sheet-title">알림 받기</h2>
+    <p>조건 안의 <b>평균 아마3 이하</b> 매치가 <b>신청 10명</b>을 넘거나 <b>마감임박(15명+)</b>이 되면 휴대폰으로 알려드려요. 밤 12시~아침 8시엔 쉬고 8시에 몰아서 보내요.</p>
+    ${alertSub ? `<div class="cond">지금 받는 조건: ${condText(subCond(alertSub))}</div>` : ""}
+    ${alertSub && same ? "" : `<div class="cond">${alertSub ? "바꿀 조건(지금 화면 필터)" : "알림 조건(지금 화면 필터)"}: ${condText(cur)}</div>`}
+    ${alertSub ? "" : `<ol>
+      <li>휴대폰에 <b>ntfy</b> 앱을 설치해요. <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">아이폰</a> · <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">안드로이드</a></li>
+      <li>앱에서 <b>+</b>를 누르고, 토픽 이름에 아래 글자를 붙여넣고 <b>Subscribe</b>를 눌러요.</li>
+      <li>아래 <b>알림 켜기</b>를 누르고, <b>테스트 알림</b>이 오는지 확인해요.</li>
+    </ol>`}
+    <div class="topic"><code id="topic-text">${esc(topic)}</code><button class="btn sub small" id="copy-topic" type="button">복사</button></div>
+    <div class="btns">
+      ${alertSub && same ? "" : `<button class="btn" id="alert-on" type="button">${alertSub ? "이 조건으로 바꾸기" : "알림 켜기"}</button>`}
+      ${alertSub ? `<button class="btn sub" id="alert-test" type="button">테스트 알림 보내기</button>
+      <button class="btn danger" id="alert-off" type="button">알림 끄기</button>` : ""}
+      <button class="btn sub" id="sheet-close" type="button">닫기</button>
+    </div>
+    <p class="note" id="sheet-note" aria-live="polite"></p>
+  </div>`;
+  document.body.append(bg);
+  const close = () => bg.remove();
+  const note = (t) => { $("sheet-note").textContent = t; };
+  bg.addEventListener("click", (e) => { if (e.target === bg) close(); });
+  $("sheet-close").onclick = close;
+  $("copy-topic").onclick = async () => {
+    try { await navigator.clipboard.writeText(topic); note("토픽 이름을 복사했어요. ntfy 앱에 붙여넣어 주세요."); }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($("topic-text")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); note("글자를 길게 눌러 복사해 주세요."); }
+  };
+  const on = $("alert-on");
+  if (on) on.onclick = async () => {
+    on.disabled = true; note("저장하는 중…");
+    const res = await fetch("/api/alerts", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ topic, ...cur }) }).catch(() => null);
+    if (!res || !res.ok) { on.disabled = false; note("저장하지 못했어요. 잠시 후 다시 시도해 주세요."); return; }
+    await refreshBell(); close(); openSheet(); $("sheet-note").textContent = "알림을 켰어요. 테스트 알림으로 확인해 보세요.";
+  };
+  const test = $("alert-test");
+  if (test) test.onclick = async () => {
+    test.disabled = true; note("보내는 중…");
+    const res = await fetch("/api/alerts/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ topic }) }).catch(() => null);
+    const body = res ? await res.json().catch(() => ({})) : {};
+    note(res && res.ok ? "보냈어요. ntfy 앱에 알림이 왔는지 확인해 주세요." : body.error || "보내지 못했어요. 잠시 후 다시 시도해 주세요.");
+    setTimeout(() => { test.disabled = false; }, 3000);
+  };
+  const off = $("alert-off");
+  if (off) off.onclick = async () => {
+    await fetch(`/api/alerts?topic=${topic}`, { method: "DELETE" }).catch(() => null);
+    await refreshBell(); close();
+  };
+}
+$("bell").onclick = openSheet;
+refreshBell();
 load();
 </script>
 </body>
