@@ -75,6 +75,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .sel.bare::after { content: none }
 .sel::after { content: "▾"; position: absolute; right: 0; pointer-events: none; font-size: 10px; color: var(--fg-3) }
 
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 50; max-width: calc(100% - 32px);
+  background: var(--black); color: var(--on-black); padding: 10px 14px; border-radius: 12px; font-size: 13px; word-break: keep-all; box-shadow: 0 4px 16px rgba(0,0,0,.2) }
 .intro { margin-top: 12px; padding: 14px 14px 12px; border-radius: 14px; background: var(--brand-soft); display: flex; flex-direction: column; gap: 8px }
 .intro h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--fg) }
 .intro ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--fg-2); word-break: keep-all }
@@ -178,7 +180,8 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
   display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: start }
 .hist-head h2 { grid-column: 1 }
 .hist-head .sub { grid-column: 1 }
-.x-btn { grid-column: 2; grid-row: 1 / span 2; appearance: none; border: 0; background: var(--muted); color: var(--fg-2); width: 34px; height: 34px;
+.head-btns { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px }
+.x-btn { flex: none; appearance: none; border: 0; background: var(--muted); color: var(--fg-2); width: 34px; height: 34px;
   border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer }
 /* 추이 팝업: 위(제목·✕) 고정 / 가운데만 스크롤 / 아래(닫기) 고정 */
 .sheet.hist { overflow: hidden; gap: 10px }
@@ -268,6 +271,7 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
     <div class="bar">
       <div class="logo"><i></i>플랩레이더</div>
       <span class="updated" id="updated"></span>
+      <button class="icon-btn" id="share" type="button" aria-label="플랩레이더 공유"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="icon-btn" id="bell" type="button" aria-label="알림 설정"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
       <button class="icon-btn" id="reload" type="button" aria-label="새로고침"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
     </div>
@@ -289,6 +293,9 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 <main class="wrap gutter" id="main"></main>
 
 <script>
+// 카톡 안 브라우저로 열리면 기본 브라우저(사파리·크롬)로 넘김 (알림·홈 화면 추가가 카톡 안에서는 안 됨)
+if (/KAKAOTALK/i.test(navigator.userAgent)) location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(location.href);
+
 const LV = ["루키","비기너1","비기너2","비기너3","아마추어1","아마추어2","아마추어3","아마추어4","아마추어5","세미프로1","세미프로2","세미프로3","프로"];
 const short = (l) => (l || "").replace("아마추어", "아마").replace("세미프로", "세미");
 const WD = ["일","월","화","수","목","금","토"];
@@ -439,7 +446,7 @@ function render(data) {
     return;
   }
   $("main").innerHTML =
-    (prefs.introSeen ? "" : INTRO) +
+    (prefs.introSeen ? "" : INTRO.replace("</ol>", IS_IOS && !STANDALONE ? `<li><b>아이폰</b>은 사파리 공유 버튼 → <b>홈 화면에 추가</b>를 하면 앱처럼 쓰고 알림도 받을 수 있어요.</li></ol>` : "</ol>")) +
     HELP +
     `<ul class="list">${items.map(rowHtml).join("")}</ul>`;
   const h = $("help"); h.open = helpOpen; h.ontoggle = () => { helpOpen = h.open; };
@@ -900,7 +907,7 @@ async function openHistory(id) {
   const nowLv = m.average_level && m.average_level !== "루키" ? short(m.average_level) : null;
   const dr = data.dist ? levelDist(data.dist) : null;
   sheet.innerHTML = `
-    <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><div class="head-btns"><button class="x-btn" id="hist-share" type="button" aria-label="이 매치 공유"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명</span></div>
     <div class="hist-body">
     <section class="blk"><h3 class="bh">지금 레벨 <span class="tag">추정</span></h3>${nowLevelHtml(data.dist, dr)}</section>
@@ -918,6 +925,11 @@ async function openHistory(id) {
     <div class="hist-foot"><button class="btn sub" id="hist-close" type="button">닫기</button></div>`;
   $("hist-close").onclick = () => bg.remove();
   $("hist-x").onclick = () => bg.remove();
+  $("hist-share").onclick = () => {
+    const lvTxt = dr ? decText(dr.mode) : nowLv || "–";
+    shareLink(`${location.origin}/?m=${m.id}`, "플랩레이더",
+      `${fmtDate(m.kst_date)} ${m.kst_time} ${shortStadium(m.title)} · 평균 ${lvTxt} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명`);
+  };
   if (pts.length < 2) return;
 
   // 평균 레벨: 데이터 범위 ±1 정수 레벨
@@ -967,8 +979,32 @@ async function openHistory(id) {
     C.svg.addEventListener("pointermove", (ev) => { if (ev.pointerType === "mouse" || ev.buttons) pick(ev, C); });
   }
 }
+// 공유: 휴대폰 공유 창(카톡 등), 안 되면 링크 복사
+const shortStadium = (t) => String(t || "").replace(/^플랩\s*스타디움\s*/, "").replace(/^서울\s*/, "").trim();
+function toast(msg) {
+  const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.append(t);
+  setTimeout(() => t.remove(), 2200);
+}
+async function shareLink(url, title, text) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast("링크를 복사했어요. 카톡에 붙여넣어 보내세요."); }
+  catch (e) { window.prompt("이 링크를 복사해서 보내세요", url); }
+}
+$("share").onclick = () => shareLink(`${location.origin}/`, "플랩레이더", "주말 플랩 매치 평균 레벨·신청 인원을 한눈에 보는 플랩레이더예요.");
+
+// 공유받은 매치 링크(/?m=매치번호)로 열면: 그 날짜로 이동해서 그 매치 팝업을 바로 엶
+(async () => {
+  const qm = Number(new URLSearchParams(location.search).get("m"));
+  if (qm > 0) {
+    history.replaceState(null, "", location.pathname); // 새로고침해도 다시 열리지 않게
+    try { const h = await (await fetch(`/api/matches/${qm}/history`)).json(); if (h && h.match && h.match.kst_date) { prefs.date = h.match.kst_date; save(); } } catch (e) {}
+    await load();
+    openHistory(qm);
+  } else load();
+})();
 refreshBell();
-load();
 </script>
 </body>
 </html>

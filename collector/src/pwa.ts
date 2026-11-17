@@ -31,11 +31,14 @@ self.addEventListener("notificationclick", (e) => {
 `;
 
 export const MANIFEST = JSON.stringify({
+  id: "/",
   name: "플랩레이더",
   short_name: "플랩레이더",
   start_url: "/",
   scope: "/",
   display: "standalone",
+  // 앱이 이미 열려 있으면 그 창에서 링크를 엶 (안드로이드 설치 앱은 사이트 링크를 앱으로 받음)
+  launch_handler: { client_mode: "navigate-existing" },
   background_color: "#171717",
   theme_color: "#ffffff",
   icons: [
