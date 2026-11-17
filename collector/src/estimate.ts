@@ -201,8 +201,22 @@ export function estimateLevel(snaps: SnapLevel[]): Estimate | null {
 export type Tier = "low" | "mid" | "high";
 
 /**
+ * 평균 레벨과 인원만으로 나오는 기본 범위 (플랩 점수). 점수가 0.1 단위라 인원이 적으면 레벨 구간 양끝에 못 닿음.
+ * 예: 2명 · 아마3 → 점수 합 4.9~5.2 → 2.45~2.6
+ */
+export function baselineRange(labelNum: number, rated: number): [number, number] {
+  const [bLo, bHi] = bandOfAverage(labelNum); // 0.1점 단위, bLo 이상 bHi 미만
+  const n = Math.max(1, rated);
+  const sLo = Math.max(Math.ceil(bLo * n - EPS), n);
+  const sHi = Math.min(Math.ceil(bHi * n - EPS) - 1, 50 * n);
+  return [sLo / n / 10, sHi / n / 10];
+}
+
+/**
  * 정렬용 칸: 각 레벨의 점수 구간을 낮은/중간/높은 세 칸으로 나눈 번호. 작을수록 낮음. (추정 구간 가운데 값 기준)
- * 화면 표시(tier, narrowed): 추정 구간 중앙값을 레벨 구간의 정중앙(예: 아마3 = 2.55)과 비교
+ * 화면 표시(tier, narrowed): 먼저 추정 구간을 "평균 레벨과 인원만으로 나오는 기본 범위"와 비교
+ *   기본 범위와 같으면(등급 구성·들고 난 기록으로 새로 알게 된 게 없으면) 표시 없음, 정렬은 가운데 칸
+ *   더 좁혀졌으면: 추정 중앙을 레벨 구간의 정중앙(예: 아마3 = 2.55)과 비교
  *   high: 정중앙보다 레벨 폭의 10% 넘게 위 / low: 10% 넘게 아래
  *   mid: 그 사이이면서 추정 구간이 아주 좁을 때(레벨 폭의 30% 이하)만
  */
@@ -211,6 +225,8 @@ export const MID_MAX_WIDTH = 0.3;
 
 export function levelBucket(e: Estimate): { bucket: number; tier: Tier; narrowed: boolean } {
   const w = e.bandHi - e.bandLo;
+  const [bl, bh] = baselineRange(e.labelNum, e.rated);
+  if (e.lo <= bl + 1e-6 && e.hi >= bh - 1e-6) return { bucket: e.labelNum * 3 + 1, tier: "mid", narrowed: false };
   const mid = (e.lo + e.hi) / 2;
   const third = Math.min(2, Math.max(0, Math.floor(((mid - e.bandLo) / w) * 3 + EPS)));
   const bucket = e.labelNum * 3 + third;

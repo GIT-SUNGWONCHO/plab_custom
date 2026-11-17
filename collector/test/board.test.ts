@@ -210,3 +210,17 @@ test("비율이 없는 스냅샷은 가짜 증감을 만들지 않음", async ()
   assert.deepEqual(t[1].changes, []);
   assert.deepEqual(t[2].changes, []);
 });
+
+test("단서 없이 인원만 적어서 치우친 범위는 표시 없음 (2명 · 아마3)", () => {
+  const s: SnapLevel = { confirm: 2, average_level: "아마추어3", pct_rookie: 0, pct_beginner: 0, pct_amateur: 100, pct_semipro: 0, pct_pro: 0 };
+  const e = estimateLevel([s])!;
+  assert.ok(Math.abs(e.lo - 2.45) < 1e-9 && Math.abs(e.hi - 2.6) < 1e-9);
+  assert.deepEqual(levelBucket(e), { bucket: 19, tier: "mid", narrowed: false });
+});
+
+test("기본 범위: 2명 아마3 = 2.45~2.6, 10명 = 2.45~2.64", async () => {
+  const { baselineRange } = await import("../src/estimate.ts");
+  const r2 = baselineRange(6, 2), r10 = baselineRange(6, 10);
+  assert.ok(Math.abs(r2[0] - 2.45) < 1e-9 && Math.abs(r2[1] - 2.6) < 1e-9);
+  assert.ok(Math.abs(r10[0] - 2.45) < 1e-9 && Math.abs(r10[1] - 2.64) < 1e-9);
+});
