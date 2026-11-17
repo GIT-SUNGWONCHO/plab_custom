@@ -5,13 +5,15 @@ import { handleFetch, type Env } from "../src/index.ts";
 import { asD1, D1Shim } from "./d1-shim.ts";
 
 let db: D1Shim;
-let sent: { topic: string; title: string; message: string; click?: string }[];
-let ntfyOk = true;
-const ntfy = async (_input: string, init?: RequestInit) => {
-  if (!ntfyOk) return new Response("nope", { status: 500 });
-  sent.push(JSON.parse(String(init?.body)));
-  return new Response("{}", { status: 200 });
+let sent: { topic: string; title: string; body: string; click?: string }[];
+let pushOk = true;
+// 가짜 발송: 실제 웹푸시 대신 보낸 내용을 기록
+const ntfy = async (topic: string, msg: { title: string; body: string; click?: string }) => {
+  if (!pushOk) return false;
+  sent.push({ topic, ...msg });
+  return true;
 };
+const PUSH = { endpoint: "https://web.push.apple.com/abc", keys: { p256dh: "BXX", auth: "aaa" } };
 
 const TOPIC = "plabradar-test-topic-1";
 // 11/22(일) 12:00 KST 경기. 지금은 11/20 12:00 KST (낮)
@@ -36,12 +38,13 @@ function subscribe(extra: Partial<{ only6: number; only_ai: number; only_tf: num
     `INSERT INTO alert_sub (topic, date, time_from, time_to, only6, only_ai, only_tf, created_at, updated_at)
      VALUES (?, '2026-11-22', ?, ?, ?, ?, ?, ?, ?)`,
   ).run(TOPIC, extra.from ?? "10:00", extra.to ?? "17:00", extra.only6 ?? 0, extra.only_ai ?? 0, extra.only_tf ?? 0, NOW.toISOString(), NOW.toISOString());
+  db.db.prepare("INSERT INTO push_sub (topic, endpoint, p256dh, auth, created_at, updated_at) VALUES (?, ?, 'k', 'a', 'x', 'x')").run(TOPIC, PUSH.endpoint);
 }
 
 beforeEach(() => {
   db = new D1Shim();
   sent = [];
-  ntfyOk = true;
+  pushOk = true;
 });
 
 test("밤 0~8시(KST)는 조용히", () => {
@@ -95,10 +98,10 @@ test("밤에는 안 보내고 아침에 보냄, 실패하면 다음에 다시", 
   const night = new Date("2026-11-20T16:00:00Z"); // 01:00 KST
   assert.equal((await runAlerts(asD1(db), ntfy, night)).skippedQuiet, true);
   assert.equal(sent.length, 0);
-  ntfyOk = false;
+  pushOk = false;
   const morning = new Date("2026-11-20T23:05:00Z"); // 08:05 KST
   assert.equal((await runAlerts(asD1(db), ntfy, morning)).failed, 1);
-  ntfyOk = true;
+  pushOk = true;
   assert.equal((await runAlerts(asD1(db), ntfy, new Date(morning.getTime() + 60_000))).sent, 1);
 });
 
@@ -112,9 +115,12 @@ test("API: 구독 저장·조회·테스트·삭제 (토큰 없이)", async () =
   const env = { DB: asD1(db), ADMIN_TOKEN: "secret" } as Env;
   const call = (path: string, method = "GET", body?: unknown) =>
     handleFetch(new Request(`https://x.dev${path}`, { method, body: body ? JSON.stringify(body) : undefined }), env, undefined, ntfy);
-  assert.equal((await call("/api/alerts", "PUT", { topic: "짧음", date: "2026-11-22", from: "10:00", to: "17:00" })).status, 400);
+  assert.equal((await call("/api/alerts", "PUT", { topic: "짧음", date: "2026-11-22", from: "10:00", to: "17:00", push: PUSH })).status, 400);
   assert.equal((await call("/api/alerts/test", "POST", { topic: TOPIC })).status, 404); // 구독 전
-  assert.equal((await call("/api/alerts", "PUT", { topic: TOPIC, date: "2026-11-22", from: "10:00", to: "17:00", only6: true })).status, 200);
+  // 웹푸시 구독 정보 없음 / 푸시 서버가 아닌 주소 → 거절
+  assert.equal((await call("/api/alerts", "PUT", { topic: TOPIC, date: "2026-11-22", from: "10:00", to: "17:00" })).status, 400);
+  assert.equal((await call("/api/alerts", "PUT", { topic: TOPIC, date: "2026-11-22", from: "10:00", to: "17:00", push: { ...PUSH, endpoint: "https://evil.example/x" } })).status, 400);
+  assert.equal((await call("/api/alerts", "PUT", { topic: TOPIC, date: "2026-11-22", from: "10:00", to: "17:00", only6: true, push: PUSH })).status, 200);
   const got = (await (await call(`/api/alerts?topic=${TOPIC}`)).json()) as { only6: number; time_to: string };
   assert.deepEqual([got.only6, got.time_to], [1, "17:00"]);
   assert.equal((await call("/api/alerts/test", "POST", { topic: TOPIC })).status, 200);
@@ -124,55 +130,7 @@ test("API: 구독 저장·조회·테스트·삭제 (토큰 없이)", async () =
   assert.equal(await (await call(`/api/alerts?topic=${TOPIC}`)).json(), null);
 });
 
-test("하루 발송 상한(200건)에 닿으면 더 안 보냄", async () => {
-  subscribe();
-  addMatch(1, { confirm: 12, avg: "아마추어3" });
-  const ins = db.db.prepare("INSERT INTO alert_log (topic, match_id, kind, ts) VALUES ('other', ?, 'ten', ?)");
-  for (let i = 0; i < 200; i++) ins.run(1000 + i, NOW.toISOString());
-  assert.equal((await runAlerts(asD1(db), ntfy, NOW)).sent, 0);
-});
-
-test("ntfy 중계: 중계 성공이면 직접 안 보냄, 중계 실패면 직접 보냄", async () => {
-  const { ntfyFetchWith, sendNtfy, NTFY_BASE } = await import("../src/alerts.ts");
-  const calls: { url: string; body: unknown; auth: string | null }[] = [];
-  let relayStatus = 200;
-  const base = async (url: string, init?: RequestInit) => {
-    calls.push({ url, body: JSON.parse(String(init?.body)), auth: new Headers(init?.headers).get("authorization") });
-    if (url === NTFY_BASE) return new Response("{}", { status: 200 });
-    return new Response(JSON.stringify({ status: relayStatus, body: "x" }), { status: 200 });
-  };
-  const f = ntfyFetchWith("tok", { url: "https://relay.example/exec", secret: "s3" }, base);
-  assert.equal(await sendNtfy(f, "plabradar-abcdefghijkl", { title: "t", body: "b", tags: "soccer" }), true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "https://relay.example/exec");
-  assert.deepEqual((calls[0].body as { secret: string }).secret, "s3");
-  assert.equal(calls[0].auth, null); // 토큰은 중계로 안 보냄
-  calls.length = 0; relayStatus = 429; // ntfy가 중계 요청도 거절 → 직접 시도
-  assert.equal(await sendNtfy(f, "plabradar-abcdefghijkl", { title: "t", body: "b", tags: "soccer" }), true);
-  assert.deepEqual(calls.map((c) => c.url), ["https://relay.example/exec", NTFY_BASE]);
-  assert.equal(calls[1].auth, "Bearer tok");
-});
-
-test("PC 발송기: 알림은 목록에 쌓이고, 가져가서 완료 표시하면 다시 안 나옴", async () => {
-  const { handleFetch } = await import("../src/index.ts");
-  const db = new D1Shim();
-  const env = { DB: asD1(db), ADMIN_TOKEN: "admin", PC_RELAY_SECRET: "pc-secret" } as never;
-  const call = (path: string, method = "GET", body?: unknown, auth = "pc-secret") =>
-    handleFetch(new Request(`https://x.dev${path}`, { method, headers: { authorization: `Bearer ${auth}` }, body: body ? JSON.stringify(body) : undefined }), env);
-  assert.equal((await call("/api/relay/outbox", "GET", undefined, "wrong")).status, 401);
-  // 구독 + 테스트 알림 → 목록에 쌓임 (발송기는 아직 안 붙음)
-  const topic = "plabradar-abcdefghijkl";
-  await handleFetch(new Request("https://x.dev/api/alerts", { method: "PUT", body: JSON.stringify({ topic, date: "2099-01-01", from: "10:00", to: "17:00" }) }), env);
-  const t = await (await handleFetch(new Request("https://x.dev/api/alerts/test", { method: "POST", body: JSON.stringify({ topic }) }), env)).json() as { ok: boolean; queued: boolean; relayAlive: boolean };
-  assert.deepEqual(t, { ok: true, queued: true, relayAlive: false });
-  const out = await (await call("/api/relay/outbox")).json() as { items: { id: number; payload: string }[] };
-  assert.equal(out.items.length, 1);
-  assert.equal(JSON.parse(out.items[0].payload).topic, topic);
-  await call("/api/relay/ack", "POST", { sent: [out.items[0].id] });
-  assert.equal(((await (await call("/api/relay/outbox")).json()) as { items: unknown[] }).items.length, 0);
-});
-
-test("웹푸시: 구독이 있는 기기는 웹푸시로, 410이면 구독 지우고, 없는 기기는 ntfy로", async () => {
+test("웹푸시: 구독이 있는 기기는 웹푸시로, 410이면 구독 지움, 구독 없으면 실패", async () => {
   const { makeDeliver } = await import("../src/alerts.ts");
   const nodeCrypto = await import("node:crypto");
   const { b64urlEncode } = await import("../src/webpush.ts");
@@ -192,14 +150,12 @@ test("웹푸시: 구독이 있는 기기는 웹푸시로, 410이면 구독 지�
     assert.equal(new Headers(init?.headers).get("content-encoding"), "aes128gcm");
     return new Response("", { status: pushStatus });
   };
-  const ntfyHits: string[] = [];
-  const ntfyFetch = async (url: string) => { ntfyHits.push(url); return new Response("{}", { status: 200 }); };
-  const d = makeDeliver(asD1(db), ntfyFetch, { publicKey: pubRaw, privateJwk: JSON.stringify(jwk), subject: "https://x.dev" }, pushFetch);
-  const msg = { title: "t", body: "b", tags: "soccer" };
+  const d = makeDeliver(asD1(db), { publicKey: pubRaw, privateJwk: JSON.stringify(jwk), subject: "https://x.dev" }, pushFetch);
+  const msg = { title: "t", body: "b" };
   assert.equal(await d("plabradar-pushpushpush", msg), true);
   assert.deepEqual(hits, ["https://web.push.apple.com/abc"]);
-  assert.equal(await d("plabradar-ntfyntfyntfy", msg), true);
-  assert.equal(ntfyHits.length, 1);
+  assert.equal(await d("plabradar-nosubnosub", msg), false); // 구독 없는 기기
+  assert.equal(hits.length, 1);
   pushStatus = 410;
   assert.equal(await d("plabradar-pushpushpush", msg), false);
   assert.equal(await asD1(db).prepare("SELECT COUNT(*) AS n FROM push_sub").first("n"), 0);

@@ -36,7 +36,7 @@ export const MANIFEST = JSON.stringify({
   start_url: "/",
   scope: "/",
   display: "standalone",
-  background_color: "#ffffff",
+  background_color: "#171717",
   theme_color: "#ffffff",
   icons: [
     { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },

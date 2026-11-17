@@ -18,7 +18,7 @@ migrations_dir = "migrations"
 # 매치 보드 화면(public/index.html)을 Worker 코드에 텍스트로 묶어서 배포
 [[rules]]
 type = "Text"
-globs = ["**/*.html", "**/*.ps1"]
+globs = ["**/*.html"]
 fallthrough = false
 
 # 앱 아이콘(PNG)은 바이너리로 묶음

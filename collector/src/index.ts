@@ -2,7 +2,7 @@
 //  - scheduled: 매분 크론 → 수집기 실행
 //  - fetch: 보드 API(공개) + 관리 API (ADMIN_TOKEN 필요)
 
-import { type Deliver, isPushEndpoint, makeDeliver, MAX_SENDS_PER_DAY, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, ntfyFetchWith, OUTBOX_MAX_AGE_MS, outboxFetch, RELAY_ALIVE_MS, sentTodayCount, TOPIC_RE } from "./alerts.ts";
+import { type Deliver, isPushEndpoint, makeDeliver, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, TOPIC_RE } from "./alerts.ts";
 import type { VapidKeys } from "./webpush.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
@@ -12,13 +12,6 @@ import { matchUrl, PlabClient, type FetchFn } from "./plab.ts";
 export interface Env {
   DB: D1Database;
   ADMIN_TOKEN: string;
-  /** ntfy.sh 계정 액세스 토큰 (wrangler secret / 대시보드에서 설정) */
-  NTFY_TOKEN?: string;
-  /** 구글 Apps Script 중계 주소와 공유 비밀값 (둘 다 있어야 중계 사용) */
-  NTFY_RELAY_URL?: string;
-  NTFY_RELAY_SECRET?: string;
-  /** PC 발송기 비밀값. 있으면 알림을 alert_outbox에 쌓고 PC가 가져가서 보냄 */
-  PC_RELAY_SECRET?: string;
   /** 웹푸시 VAPID 공개키(wrangler.toml vars) · 개인키 JWK(시크릿) · 연락처 */
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_JWK?: string;
@@ -28,12 +21,6 @@ export interface Env {
 export function vapidOf(env: Env): VapidKeys | null {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_JWK) return null;
   return { publicKey: env.VAPID_PUBLIC_KEY, privateJwk: env.VAPID_PRIVATE_JWK, subject: env.VAPID_SUBJECT || "https://plab-radar.oroloov.workers.dev" };
-}
-
-/** 알림 발송 경로: PC 발송기(설정돼 있으면) → 아니면 구글 중계/직접 */
-export function makeNtfyFetch(env: Env): FetchFn {
-  const direct = ntfyFetchWith(env.NTFY_TOKEN, { url: env.NTFY_RELAY_URL, secret: env.NTFY_RELAY_SECRET });
-  return env.PC_RELAY_SECRET ? outboxFetch(env.DB, direct) : direct;
 }
 
 const json = (data: unknown, status = 200) =>
@@ -84,8 +71,7 @@ export async function handleFetch(
   req: Request,
   env: Env,
   client = new PlabClient(),
-  ntfyFetch: FetchFn = makeNtfyFetch(env),
-  deliver: Deliver = makeDeliver(env.DB, ntfyFetch, vapidOf(env)),
+  deliver: Deliver = makeDeliver(env.DB, vapidOf(env)),
 ): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -99,40 +85,6 @@ export async function handleFetch(
   }
   // 보드 조회는 공개 (지인 공유용). 규칙 변경·수동 실행 등 관리 기능만 토큰 필요
   const historyMatch = /^\/api\/matches\/(\d+)\/history$/.exec(path);
-  // --- PC 발송기 (PC_RELAY_SECRET로 인증): 보낼 알림 가져가기 / 완료 표시
-  if (path === "/api/relay/outbox" || path === "/api/relay/ack") {
-    const h = req.headers.get("authorization") ?? "";
-    if (!env.PC_RELAY_SECRET || !h.startsWith("Bearer ") || !timingSafeEqual(h.slice(7), env.PC_RELAY_SECRET)) {
-      return json({ error: "unauthorized" }, 401);
-    }
-    const nowIso = new Date().toISOString();
-    await env.DB.prepare("INSERT INTO state (key, value) VALUES ('relay_last_seen', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-      .bind(nowIso).run();
-    if (path === "/api/relay/outbox" && req.method === "GET") {
-      const since = new Date(Date.now() - OUTBOX_MAX_AGE_MS).toISOString();
-      const { results } = await env.DB.prepare(
-        "SELECT id, payload FROM alert_outbox WHERE sent_at IS NULL AND created_at >= ? AND attempts < 5 ORDER BY id LIMIT 20",
-      ).bind(since).all<{ id: number; payload: string }>();
-      return json({ items: results });
-    }
-    if (path === "/api/relay/ack" && req.method === "POST") {
-      const b = (await req.json().catch(() => null)) as { sent?: unknown; failed?: unknown } | null;
-      const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is number => Number.isInteger(x)).slice(0, 50) : []);
-      const stmts = [
-        ...ids(b?.sent).map((id) => env.DB.prepare("UPDATE alert_outbox SET sent_at = ?, attempts = attempts + 1 WHERE id = ?").bind(nowIso, id)),
-        ...(Array.isArray(b?.failed) ? (b!.failed as unknown[]) : []).slice(0, 50).flatMap((f) => {
-          const o = f as { id?: unknown; error?: unknown };
-          return Number.isInteger(o?.id)
-            ? [env.DB.prepare("UPDATE alert_outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?").bind(String(o.error ?? "").slice(0, 300), o.id as number)]
-            : [];
-        }),
-      ];
-      if (stmts.length) await env.DB.batch(stmts);
-      return json({ ok: true });
-    }
-    return json({ error: "not found" }, 404);
-  }
-
   const isPublic = (path === "/api/board" && req.method === "GET") || path === "/api/alerts" || path === "/api/alerts/test" || path === "/api/push/key"
     || (!!historyMatch && req.method === "GET");
 
@@ -175,7 +127,7 @@ export async function handleFetch(
       const row = await env.DB.prepare("SELECT * FROM alert_sub WHERE topic = ?").bind(topic).first();
       if (!row) return json(null);
       const push = await env.DB.prepare("SELECT 1 AS x FROM push_sub WHERE topic = ?").bind(topic).first();
-      return json({ ...row, channel: push ? "push" : "ntfy" });
+      return json(push ? row : null); // 웹푸시 구독이 없으면 알림이 안 가므로 없는 것으로
     }
     if (req.method === "DELETE") {
       if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
@@ -193,10 +145,9 @@ export async function handleFetch(
       if (typeof b.from !== "string" || !TIME_RE.test(b.from) || typeof b.to !== "string" || !TIME_RE.test(b.to)) {
         return json({ error: "from/to: 'HH:MM'" }, 400);
       }
-      // 받는 방법: "push"면 이 기기의 웹푸시 구독 정보가 필요, "ntfy"면 웹푸시 구독을 지움
+      // 이 기기의 웹푸시 구독 정보 (필수)
       const p = b.push as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | undefined;
-      const wantPush = b.channel === "push";
-      if (wantPush && !(p && typeof p.endpoint === "string" && isPushEndpoint(p.endpoint)
+      if (!(p && typeof p.endpoint === "string" && isPushEndpoint(p.endpoint)
         && typeof p.keys?.p256dh === "string" && typeof p.keys?.auth === "string" && p.keys.p256dh.length < 200 && p.keys.auth.length < 100)) {
         return json({ error: "웹푸시 구독 정보가 올바르지 않아요" }, 400);
       }
@@ -213,13 +164,11 @@ export async function handleFetch(
          ON CONFLICT(topic) DO UPDATE SET date = excluded.date, time_from = excluded.time_from, time_to = excluded.time_to,
            only6 = excluded.only6, only_ai = excluded.only_ai, only_tf = excluded.only_tf, updated_at = excluded.updated_at`,
       ).bind(b.topic, b.date, b.from, b.to, b.only6 ? 1 : 0, b.onlyAI ? 1 : 0, b.onlyTF ? 1 : 0, nowIso, nowIso).run();
-      if (wantPush) {
+      {
         await env.DB.prepare(
           `INSERT INTO push_sub (topic, endpoint, p256dh, auth, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(topic) DO UPDATE SET endpoint = excluded.endpoint, p256dh = excluded.p256dh, auth = excluded.auth, updated_at = excluded.updated_at`,
-        ).bind(b.topic, p!.endpoint, p!.keys!.p256dh, p!.keys!.auth, nowIso, nowIso).run();
-      } else if (b.channel === "ntfy") {
-        await env.DB.prepare("DELETE FROM push_sub WHERE topic = ?").bind(b.topic).run();
+        ).bind(b.topic, p.endpoint, p.keys!.p256dh, p.keys!.auth, nowIso, nowIso).run();
       }
       return json({ ok: true });
     }
@@ -230,32 +179,27 @@ export async function handleFetch(
     const topic = typeof b?.topic === "string" ? b.topic : "";
     if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
     // 등록된 토픽에만, 1분에 한 번
-    const sub = await env.DB.prepare("SELECT topic FROM alert_sub WHERE topic = ?").bind(topic).first();
-    if (!sub) return json({ error: "먼저 알림을 켜 주세요" }, 404);
+    const sub = await env.DB.prepare("SELECT a.topic FROM alert_sub a JOIN push_sub p ON p.topic = a.topic WHERE a.topic = ?").bind(topic).first();
+    if (!sub) return json({ error: "먼저 이 기기 알림을 켜 주세요" }, 404);
     const key = `alert_test:${topic}`;
     const last = await env.DB.prepare("SELECT value FROM state WHERE key = ?").bind(key).first<string>("value");
     if (last && Date.now() - Date.parse(last) < 60_000) return json({ error: "1분 뒤에 다시 시도해 주세요" }, 429);
-    // 테스트도 ntfy 하루 한도를 쓰므로 하루 상한 안에서, 테스트끼리는 하루 30건까지
+    // 테스트는 전체 하루 30건까지
     const now = new Date();
     const dayStart = now.toISOString().slice(0, 10) + "T00:00:00.000Z";
     const tests = await env.DB.prepare("SELECT COUNT(*) AS n FROM alert_log WHERE kind = 'test' AND ts >= ?").bind(dayStart).first<number>("n");
-    if ((tests ?? 0) >= MAX_TESTS_PER_DAY || (await sentTodayCount(env.DB, now)) >= MAX_SENDS_PER_DAY) {
+    if ((tests ?? 0) >= MAX_TESTS_PER_DAY) {
       return json({ error: "오늘은 테스트 알림을 더 보낼 수 없어요. 내일 다시 시도해 주세요." }, 429);
     }
     await env.DB.prepare("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
       .bind(key, new Date().toISOString()).run();
-    const ok = await deliver(topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: "white_check_mark", tag: "test" })
+    const ok = await deliver(topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tag: "test" })
       .catch(() => false);
     if (ok) {
       await env.DB.prepare("INSERT OR IGNORE INTO alert_log (topic, match_id, kind, ts) VALUES (?, ?, 'test', ?)")
         .bind(topic, -Math.floor(now.getTime() / 1000), now.toISOString()).run();
     }
-    const viaPush = !!(vapidOf(env) && (await env.DB.prepare("SELECT 1 AS x FROM push_sub WHERE topic = ?").bind(topic).first()));
-    if (ok && env.PC_RELAY_SECRET && !viaPush) {
-      const seen = await env.DB.prepare("SELECT value FROM state WHERE key = 'relay_last_seen'").first<string>("value");
-      return json({ ok, queued: true, relayAlive: !!seen && Date.now() - Date.parse(seen) < RELAY_ALIVE_MS });
-    }
-    return json({ ok }, ok ? 200 : 502);
+    return json(ok ? { ok } : { ok, error: "보내지 못했어요. 알림을 껐다가 다시 켜 보세요." }, ok ? 200 : 502);
   }
 
   // --- 구장 검색: 규칙에 넣을 stadium_group id 찾기

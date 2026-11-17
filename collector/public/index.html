@@ -149,8 +149,6 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .sheet .cond b { color: var(--fg) }
 .sheet ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--fg-2) }
 .sheet a { color: var(--blue) }
-.topic { display: flex; gap: 6px; align-items: center }
-.topic code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: var(--muted); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--fg) }
 .btns { display: flex; flex-direction: column; gap: 8px }
 .btn { flex: none; appearance: none; border: 0; border-radius: 12px; height: 46px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
   background: var(--black); color: var(--on-black) }
@@ -160,12 +158,6 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .note { font-size: 13px; color: var(--fg-3); min-height: 18px }
 .sheet .hint { display: block; font-size: 12px; color: var(--fg-3); margin-top: 6px }
 .sheet .cond ol { margin-top: 8px }
-.sheet details.alt { border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 10px }
-.sheet details.alt summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; color: var(--fg-2) }
-.sheet details.alt summary::-webkit-details-marker { display: none }
-.sheet details.alt summary::after { content: " ▾"; color: var(--fg-3) }
-.sheet details.alt[open] summary::after { content: " ▴" }
-.sheet details.alt > * + * { margin-top: 10px }
 .lv { cursor: pointer }
 .hist-head { flex: none; padding-bottom: 4px;
   display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: start }
@@ -420,7 +412,7 @@ function clearFilters() {
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 
-// ---------- 알림 (ntfy) ----------
+// ---------- 알림 (웹푸시) ----------
 let alertSub = null;
 function ensureTopic() {
   if (!prefs.topic) {
@@ -468,35 +460,24 @@ function openSheet() {
   const topic = ensureTopic();
   const cur = currentCond();
   const same = alertSub && JSON.stringify(subCond(alertSub)) === JSON.stringify({ ...cur, only6: !!cur.only6, onlyAI: !!cur.onlyAI, onlyTF: !!cur.onlyTF });
-  const ch = alertSub ? alertSub.channel : null;
   const canPush = PUSH_OK && (!IS_IOS || STANDALONE);
-  const pushLabel = !alertSub ? "이 기기로 알림 켜기" : ch !== "push" ? "이 기기 알림으로 바꾸기" : same ? "" : "이 조건으로 바꾸기";
+  const pushLabel = !alertSub ? "이 기기로 알림 켜기" : same ? "" : "이 조건으로 바꾸기";
   const bg = document.createElement("div");
   bg.className = "sheet-bg";
   bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <h2 id="sheet-title">알림 받기</h2>
     <p>조건 안의 <b>평균 아마3 이하</b> 매치가 <b>신청 10명</b>을 넘거나 <b>마감임박(15명+)</b>이 되면 휴대폰으로 알려드려요. 밤 12시~아침 8시엔 쉬고 8시에 몰아서 보내요.</p>
-    ${alertSub ? `<div class="cond">지금 받는 조건: ${condText(subCond(alertSub))}<br>받는 방법: <b>${ch === "push" ? "이 기기 알림" : "ntfy 앱"}</b></div>` : ""}
+    ${alertSub ? `<div class="cond">지금 받는 조건: ${condText(subCond(alertSub))}</div>` : ""}
     ${alertSub && same ? "" : `<div class="cond">${alertSub ? "바꿀 조건(지금 화면 필터)" : "알림 조건(지금 화면 필터)"}: ${condText(cur)}</div>`}
     ${canPush ? "" : IS_IOS && !STANDALONE ? `<div class="cond">아이폰은 <b>홈 화면에 추가한 앱</b>에서만 알림을 받을 수 있어요.
       <ol><li>사파리 아래쪽 <b>공유 버튼</b>(네모에 위쪽 화살표)을 눌러요.</li><li><b>홈 화면에 추가</b>를 눌러요.</li><li>홈 화면의 <b>플랩레이더</b> 아이콘으로 열고 🔔를 다시 눌러요.</li></ol>
       <span class="hint">iOS 16.4 이상이 필요해요.</span></div>`
-      : `<div class="cond">이 브라우저는 웹 알림을 지원하지 않아요${IS_IOS ? " (iOS 16.4 이상 필요)" : ""}. 아래 ntfy 앱 방식을 써 주세요.</div>`}
+      : `<div class="cond">이 브라우저는 알림을 지원하지 않아요${IS_IOS ? ". iOS 16.4 이상으로 업데이트해 주세요" : ". 크롬·사파리 최신 버전에서 열어 주세요"}.</div>`}
     <div class="btns">
       ${canPush && pushLabel ? `<button class="btn" id="push-on" type="button">${pushLabel}</button>` : ""}
       ${alertSub ? `<button class="btn sub" id="alert-test" type="button">테스트 알림 보내기</button>
       <button class="btn danger" id="alert-off" type="button">알림 끄기</button>` : ""}
     </div>
-    <details class="alt"${(!canPush && !(IS_IOS && !STANDALONE)) || ch === "ntfy" ? " open" : ""}><summary>ntfy 앱으로 받기 (다른 방법)</summary>
-      <ol>
-        <li>휴대폰에 <b>ntfy</b> 앱을 설치해요. <a href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">아이폰</a> · <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">안드로이드</a></li>
-        <li>앱에서 <b>+</b>를 누르고, 토픽 이름에 아래 글자를 붙여넣고 <b>Subscribe</b>를 눌러요.</li>
-        <li>아래 <b>ntfy로 받기</b>를 누르고, 테스트 알림이 오는지 확인해요.</li>
-      </ol>
-      <div class="topic"><code id="topic-text">${esc(topic)}</code><button class="btn sub small" id="copy-topic" type="button">복사</button></div>
-      ${ch === "ntfy" && same ? "" : `<button class="btn sub" id="ntfy-on" type="button">ntfy로 받기${alertSub && ch === "ntfy" ? " (이 조건으로 바꾸기)" : ""}</button>`}
-      <p class="hint">ntfy 무료 한도가 공용 IP 기준이라 알림이 가끔 안 갈 수 있어요.</p>
-    </details>
     <button class="btn sub" id="sheet-close" type="button">닫기</button>
     <p class="note" id="sheet-note" aria-live="polite"></p>
   </div>`;
@@ -505,10 +486,6 @@ function openSheet() {
   const note = (t) => { $("sheet-note").textContent = t; };
   bg.addEventListener("click", (e) => { if (e.target === bg) close(); });
   $("sheet-close").onclick = close;
-  $("copy-topic").onclick = async () => {
-    try { await navigator.clipboard.writeText(topic); note("토픽 이름을 복사했어요. ntfy 앱에 붙여넣어 주세요."); }
-    catch (e) { const r = document.createRange(); r.selectNodeContents($("topic-text")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); note("글자를 길게 눌러 복사해 주세요."); }
-  };
   const save = async (btn, extra, done) => {
     const res = await fetch("/api/alerts", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ topic, ...cur, ...extra }) }).catch(() => null);
     if (!res || !res.ok) { btn.disabled = false; note((res && (await res.json().catch(() => ({}))).error) || "저장하지 못했어요. 잠시 후 다시 시도해 주세요."); return; }
@@ -520,28 +497,20 @@ function openSheet() {
     let sub;
     try { sub = await pushSubscribe(); } catch (e) { pushOn.disabled = false; note(e.message || "알림을 켜지 못했어요."); return; }
     note("저장하는 중…");
-    await save(pushOn, { channel: "push", push: sub }, "이 기기 알림을 켰어요. 테스트 알림으로 확인해 보세요.");
-  };
-  const ntfyOn = $("ntfy-on");
-  if (ntfyOn) ntfyOn.onclick = async () => {
-    ntfyOn.disabled = true; note("저장하는 중…");
-    if (ch === "push") await pushUnsubscribe();
-    await save(ntfyOn, { channel: "ntfy" }, "ntfy 알림을 켰어요. 테스트 알림으로 확인해 보세요.");
+    await save(pushOn, { push: sub }, "이 기기 알림을 켰어요. 테스트 알림으로 확인해 보세요.");
   };
   const test = $("alert-test");
   if (test) test.onclick = async () => {
     test.disabled = true; note("보내는 중…");
     const res = await fetch("/api/alerts/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ topic }) }).catch(() => null);
     const body = res ? await res.json().catch(() => ({})) : {};
-    note(!(res && res.ok) ? body.error || "보내지 못했어요. 잠시 후 다시 시도해 주세요."
-      : body.queued && !body.relayAlive ? "알림 발송기가 지금 꺼져 있어요. 발송기가 켜지면 보내드려요."
-      : ch === "push" ? "보냈어요. 휴대폰 알림이 왔는지 확인해 주세요." : "보냈어요. ntfy 앱에 알림이 왔는지 확인해 주세요.");
+    note(res && res.ok ? "보냈어요. 알림이 왔는지 확인해 주세요." : body.error || "보내지 못했어요. 잠시 후 다시 시도해 주세요.");
     setTimeout(() => { test.disabled = false; }, 3000);
   };
   const off = $("alert-off");
   if (off) off.onclick = async () => {
     await fetch(`/api/alerts?topic=${topic}`, { method: "DELETE" }).catch(() => null);
-    if (ch === "push") await pushUnsubscribe();
+    await pushUnsubscribe();
     await refreshBell(); close();
   };
 }
