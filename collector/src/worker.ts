@@ -19,7 +19,7 @@ export default {
           console.error("collector failed", e);
         }
         // 수집 직후 알림 판단 (수집 실패와 상관없이 실행)
-        const a = await runAlerts(env.DB, ntfyFetchWith(env.NTFY_TOKEN), now).catch((e) => {
+        const a = await runAlerts(env.DB, ntfyFetchWith(env.NTFY_TOKEN, { url: env.NTFY_RELAY_URL, secret: env.NTFY_RELAY_SECRET }), now).catch((e) => {
           console.error("alerts error", e);
           return null;
         });

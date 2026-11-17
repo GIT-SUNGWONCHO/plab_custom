@@ -13,6 +13,9 @@ export interface Env {
   ADMIN_TOKEN: string;
   /** ntfy.sh 계정 액세스 토큰 (wrangler secret / 대시보드에서 설정) */
   NTFY_TOKEN?: string;
+  /** 구글 Apps Script 중계 주소와 공유 비밀값 (둘 다 있어야 중계 사용) */
+  NTFY_RELAY_URL?: string;
+  NTFY_RELAY_SECRET?: string;
 }
 
 const json = (data: unknown, status = 200) =>
@@ -63,7 +66,7 @@ export async function handleFetch(
   req: Request,
   env: Env,
   client = new PlabClient(),
-  ntfyFetch: FetchFn = ntfyFetchWith(env.NTFY_TOKEN),
+  ntfyFetch: FetchFn = ntfyFetchWith(env.NTFY_TOKEN, { url: env.NTFY_RELAY_URL, secret: env.NTFY_RELAY_SECRET }),
 ): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";

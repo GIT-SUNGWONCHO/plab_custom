@@ -131,3 +131,24 @@ test("하루 발송 상한(200건)에 닿으면 더 안 보냄", async () => {
   for (let i = 0; i < 200; i++) ins.run(1000 + i, NOW.toISOString());
   assert.equal((await runAlerts(asD1(db), ntfy, NOW)).sent, 0);
 });
+
+test("ntfy 중계: 중계 성공이면 직접 안 보냄, 중계 실패면 직접 보냄", async () => {
+  const { ntfyFetchWith, sendNtfy, NTFY_BASE } = await import("../src/alerts.ts");
+  const calls: { url: string; body: unknown; auth: string | null }[] = [];
+  let relayStatus = 200;
+  const base = async (url: string, init?: RequestInit) => {
+    calls.push({ url, body: JSON.parse(String(init?.body)), auth: new Headers(init?.headers).get("authorization") });
+    if (url === NTFY_BASE) return new Response("{}", { status: 200 });
+    return new Response(JSON.stringify({ status: relayStatus, body: "x" }), { status: 200 });
+  };
+  const f = ntfyFetchWith("tok", { url: "https://relay.example/exec", secret: "s3" }, base);
+  assert.equal(await sendNtfy(f, "plabradar-abcdefghijkl", { title: "t", body: "b", tags: "soccer" }), true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://relay.example/exec");
+  assert.deepEqual((calls[0].body as { secret: string }).secret, "s3");
+  assert.equal(calls[0].auth, null); // 토큰은 중계로 안 보냄
+  calls.length = 0; relayStatus = 429; // ntfy가 중계 요청도 거절 → 직접 시도
+  assert.equal(await sendNtfy(f, "plabradar-abcdefghijkl", { title: "t", body: "b", tags: "soccer" }), true);
+  assert.deepEqual(calls.map((c) => c.url), ["https://relay.example/exec", NTFY_BASE]);
+  assert.equal(calls[1].auth, "Bearer tok");
+});

@@ -106,12 +106,40 @@ export interface AlertRunResult {
   skippedQuiet: boolean;
 }
 
-/** ntfy.sh 계정 토큰이 있으면 붙이는 fetch (토큰 없으면 IP 기준 공용 한도 → Cloudflare 공용 IP라 금방 막힘) */
-export function ntfyFetchWith(token: string | undefined): FetchFn {
-  return (input, init) => {
+/**
+ * ntfy로 보내는 fetch.
+ * - 중계(구글 Apps Script)가 설정돼 있으면 먼저 중계로 보냄: Cloudflare 공용 IP는 ntfy의 IP 기준 하루 한도를
+ *   다른 사용자와 나눠 써서 금방 429가 남. 중계는 { secret, payload }를 받아 ntfy.sh로 대신 보내고
+ *   { status, body }를 돌려줌 (ntfy 토큰은 중계 쪽 설정에 있음).
+ * - 중계가 없거나 실패하면 직접 보냄 (토큰 있으면 붙임).
+ */
+export function ntfyFetchWith(token: string | undefined, relay?: { url?: string; secret?: string }, baseFetch: FetchFn = (i, n) => fetch(i, n)): FetchFn {
+  const direct: FetchFn = (input, init) => {
     const headers = new Headers(init?.headers);
     if (token) headers.set("authorization", `Bearer ${token}`);
-    return fetch(input, { ...init, headers });
+    return baseFetch(input, { ...init, headers });
+  };
+  if (!relay?.url || !relay.secret) return direct;
+  return async (input, init) => {
+    if (input !== NTFY_BASE || typeof init?.body !== "string") return direct(input, init);
+    try {
+      // Apps Script 웹앱은 POST 뒤 302로 결과 주소를 돌려줌 → fetch가 따라가서 결과(JSON)를 받음
+      const res = await baseFetch(relay.url!, {
+        method: "POST",
+        redirect: "follow",
+        signal: AbortSignal.timeout(20_000),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ secret: relay.secret, payload: JSON.parse(init.body) }),
+      });
+      const out = (await res.json().catch(() => null)) as { status?: number; body?: string; error?: string } | null;
+      if (res.ok && out && typeof out.status === "number") {
+        if (out.status >= 200 && out.status < 300) return new Response(out.body ?? "", { status: out.status });
+        console.error("ntfy relay: ntfy answered", out.status, String(out.body ?? "").slice(0, 300));
+      } else console.error("ntfy relay failed", res.status, out?.error ?? "");
+    } catch (e) {
+      console.error("ntfy relay error", String(e));
+    }
+    return direct(input, init); // 중계 실패 → 직접 시도
   };
 }
 

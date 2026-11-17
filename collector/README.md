@@ -37,6 +37,9 @@
 - 00~08시(KST)는 보내지 않고 08시 이후에 발송. 실행당 최대 8건.
 - **ntfy.sh 계정 토큰 필요**: 토큰 없이 보내면 IP 기준 공용 한도라 Cloudflare 공용 IP에서 금방 429.
   Worker 시크릿 `NTFY_TOKEN`에 ntfy.sh 액세스 토큰을 넣을 것.
+- **무료 계정 한도는 IP 기준**(계정 등급 없음 → `basis: ip`): Cloudflare 공용 IP를 다른 사용자와 나눠 써서 토큰이 있어도 429가 남.
+  → 구글 Apps Script 중계(`relay/ntfy-relay.gs`)를 웹앱으로 배포하고, 워커 시크릿 `NTFY_RELAY_URL`(웹앱 주소)·`NTFY_RELAY_SECRET`을 넣으면
+  중계로 먼저 보내고 실패하면 직접 보냄.
 
 ## 배포 (Cloudflare 무료 플랜)
 
