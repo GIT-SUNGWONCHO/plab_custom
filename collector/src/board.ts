@@ -8,7 +8,7 @@
 // 4. 같은 시각이면: 레벨 칸 낮은 순 → 6vs6 → 신청 10명 이상 (AI리포트는 정렬에 안 씀 — 화면에서 필터로)
 // 마감된 매치도 같은 규칙으로 정렬 (화면에서 기본은 '마감 제외')
 
-import { estimateLevel, levelBucket, type Estimate, type SnapLevel, type Tier } from "./estimate.ts";
+import { allCounts, estimateLevel, levelBucket, type Estimate, type SnapLevel, type Tier } from "./estimate.ts";
 import { matchUrl } from "./plab.ts";
 import { deadlineOf } from "./schedule.ts";
 
@@ -64,6 +64,8 @@ export interface BoardItem {
   bucket: number | null;
   /** 평균이 내 레벨 이하 (초록 표시) */
   atOrBelowMine: boolean;
+  /** 화면에서 확률(레벨 안 위치)을 계산할 재료: 등급별 인원 + 확실한 점수 합 범위(0.1점 단위) */
+  dist: { counts: Record<string, number>; rated: number; sumLo: number; sumHi: number } | null;
   preference: number;
   enoughPlayers: boolean;
 }
@@ -87,7 +89,9 @@ export function buildBoard(
     .filter((m) => m.sex !== -1)
     .map((m): BoardItem => {
       const features: string[] = m.features ? JSON.parse(m.features) : [];
-      const est = estimateLevel(snapsByMatch.get(m.id) ?? []);
+      const snaps = snapsByMatch.get(m.id) ?? [];
+      const est = estimateLevel(snaps);
+      const counts = snaps.length ? allCounts(snaps[snaps.length - 1]) : null;
       const b = est ? levelBucket(est) : null;
       const is6v6 = (m.format ?? "").replace(/\s/g, "") === "6vs6";
       const aiReport = features.includes("ai_report");
@@ -115,8 +119,11 @@ export function buildBoard(
         averageLevel: m.average_level,
         estimate: est && b ? { ...est, tier: b.tier, narrowed: b.narrowed } : null,
         bucket: b ? b.bucket : null,
-        atOrBelowMine: !!est && !!b &&
-          (est.labelNum < my || (est.labelNum === my && !(b.narrowed && b.tier === "high"))),
+        // 초록: 평균이 내 레벨 이하 (같은 레벨이면 높은 쪽이어도 초록)
+        atOrBelowMine: !!est && est.labelNum <= my,
+        dist: est && counts
+          ? { counts, rated: est.rated, sumLo: Math.round(est.lo * est.rated * 10), sumHi: Math.round(est.hi * est.rated * 10) }
+          : null,
         preference: is6v6 ? 1 : 0,
         enoughPlayers: confirm >= MIN_RELIABLE_PLAYERS,
       };

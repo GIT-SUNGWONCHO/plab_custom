@@ -312,7 +312,11 @@ export async function handleFetch(
       if (!byMatch.has(s.match_id)) byMatch.set(s.match_id, []);
       byMatch.get(s.match_id)!.push(s);
     }
+    // 레벨 안 위치 확률은 화면에서 계산 → 사전 분포(레벨별 비율)를 같이 내려줌
+    const { results: groups } = await env.DB.prepare("SELECT lo, hi, COUNT(*) AS n FROM level_obs GROUP BY lo, hi")
+      .all<{ lo: number; hi: number; n: number }>();
     return json({
+      prior: levelPrior(groups).map((x) => Math.round(x * 1e4) / 1e4),
       filter: { date, from, to },
       updated_at: (lastRun.results[0] as { ts?: string } | undefined)?.ts ?? null,
       dates,

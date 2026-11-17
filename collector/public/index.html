@@ -208,7 +208,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .muted { color: var(--fg-3); font-size: 11.5px }
 .cells { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px }
 .cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px }
-.cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--fg-3) }
+.cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--brand) }
 .cell em { position: relative; height: 26px; line-height: 26px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums }
 .cell small { font-size: 10.5px; color: var(--fg-3) }
 .hist-lv { list-style: none; margin: 0; padding: 0; display: flex; gap: 5px }
@@ -360,11 +360,12 @@ function levelHtml(it) {
   if (!e) return `<div class="lv"><span class="k" aria-label="평균 없음">–</span></div>`;
   const L = short(e.label);
   // 레벨 안 위치: ▲ 높은 쪽 · ● 가운데 · ▼ 낮은 쪽 · 모르면 표시 안 함
-  const pos = e.narrowed ? { low: [TIER_SVG.low, "낮은 쪽"], mid: [TIER_SVG.mid, "가운데"], high: [TIER_SVG.high, "높은 쪽"] }[e.tier] : null;
+  const tier = it.probTier;
+  const pos = tier ? { low: [TIER_SVG.low, "낮은 쪽"], mid: [TIER_SVG.mid, "가운데"], high: [TIER_SVG.high, "높은 쪽"] }[tier] : null;
   // 초록: 내 레벨보다 낮거나, 내 레벨과 같은데 높은 쪽이 아닌 매치만
   const good = it.atOrBelowMine;
 
-  return `<div class="lv"><b class="lvname${good ? " good" : ""}">${esc(L)}</b>${pos ? `<span class="tier ${e.tier}" role="img" aria-label="${esc(L)} 중 ${pos[1]}" title="${esc(L)} 중 ${pos[1]}">${pos[0]}</span>` : ""}</div>`;
+  return `<div class="lv"><b class="lvname${good ? " good" : ""}">${esc(L)}</b>${pos ? `<span class="tier ${tier}" role="img" aria-label="${esc(L)} 중 ${pos[1]}" title="${esc(L)} 중 ${pos[1]}">${pos[0]}</span>` : ""}</div>`;
 }
 function rowHtml(it) {
   const status = it.full ? ["full", "마감"] : it.closingSoon ? ["hurry", "마감임박"] : ["available", "신청가능"];
@@ -383,8 +384,30 @@ function rowHtml(it) {
 }
 
 let last = null;
+// 목록 아이콘(레벨 안 위치)을 팝업과 같은 확률 계산으로: 한쪽이 50% 이상이면 ▼ ● ▲, 아니면 없음
+function addProbTiers(data) {
+  if (data._prob) return;
+  data._prob = true;
+  for (const it of data.items) {
+    it.probTier = null; it.pbucket = 99;
+    const e = it.estimate; if (!e) continue;
+    it.pbucket = e.labelNum * 3 + 1;
+    if (!it.dist || !data.prior) continue;
+    const r = levelDist({ prior: data.prior, ...it.dist, bandLo: e.bandLo, bandHi: e.bandHi }, true);
+    if (!r) continue;
+    const top = r.third.indexOf(Math.max(...r.third));
+    it.pbucket = e.labelNum * 3 + top;
+    if (r.third[top] > 0.5 + 1e-6) it.probTier = ["low", "mid", "high"][top];
+  }
+  // 추천순: 서버와 같은 순서인데, 같은 시각 안의 레벨 칸만 확률 기준으로
+  data.items.sort((a, b) =>
+    Number(b.atOrBelowMine) - Number(a.atOrBelowMine) || Number(b.closingSoon) - Number(a.closingSoon) ||
+    a.time.localeCompare(b.time) || a.pbucket - b.pbucket || Number(b.is6v6) - Number(a.is6v6) ||
+    Number(b.enoughPlayers) - Number(a.enoughPlayers) || a.id - b.id);
+}
 function render(data) {
   last = data;
+  addProbTiers(data);
   $("updated").textContent = ago(data.updated_at);
   renderDates(data.dates);
   // 추천순은 서버 정렬 그대로, 시간순은 시작 시각 → 구장명
@@ -409,11 +432,10 @@ let helpOpen = false;
 const tierIc = (k) => `<span class="tier-inline ${k}">${TIER_SVG[k]}</span>`;
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
   <h4>레벨 보는 법</h4>
-  <p><b>초록 레벨</b> 평균이 아마3 이하인 매치 (아마3 중 높은 쪽 ${tierIc("high")}은 제외).</p>
+  <p><b>초록 레벨</b> 평균이 아마3 이하인 매치.</p>
   <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이라, 화면에서는 이 범위를 아마3.0~3.9로 바꿔서 보여줘요. 아마3.5가 가운데라, 3.2면 낮은 3, 3.8이면 높은 3. 평가된 신청자가 없으면 –.</p>
-  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 범위 안에서 추정한 평균이 가운데(아마3.5)보다 위 / 거의 가운데 / 아래라는 뜻.
-    사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
-  <p><b>아이콘 없음</b> 아직 범위를 좁힐 단서가 없어서 어디쯤인지 알 수 없는 매치. 정렬할 땐 가운데로 쳐요.</p>
+  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 평균이 높은 쪽 / 가운데 / 낮은 쪽일 확률이 50%를 넘는다는 뜻 (추정). 레벨 칩을 누르면 자세히 나와요.</p>
+  <p><b>아이콘 없음</b> 어느 쪽도 50%를 넘지 않는 매치.</p>
   <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
   <h4>매치 카드</h4>
   <p><b>마감임박</b> 신청 15명 이상.</p>
@@ -647,7 +669,7 @@ function whoHtml(p) {
 // 3) 점수 합이 실제로 가능한 범위(sumLo~sumHi) 밖은 버리고 다시 합이 1이 되게 → 조건부 확률
 // 4) 평균 = 점수 합 ÷ 인원, 레벨별 인원 = 한 사람씩 "이 사람이 레벨 L일 확률"을 더함
 const GRADE_LV = { beginner: [1, 3], amateur: [4, 8], semipro: [9, 11], pro: [12, 12] };
-function levelDist(d) {
+function levelDist(d, light = false) {
   const tenth = (L) => [Math.round(SCORE_BANDS[L][0] * 10), Math.round(SCORE_BANDS[L][1] * 10)];
   const lvOf = (x) => { let L = 1; while (L < 12 && x > tenth(L)[1]) L++; return L; };
   const person = {};
@@ -676,6 +698,7 @@ function levelDist(d) {
     third[Math.min(2, Math.max(0, Math.floor(((m - d.bandLo) / (d.bandHi - d.bandLo)) * 3)))] += p;
   }
   if (!Z) return null;
+  if (light) return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), Z };
   const expect = Array(13).fill(0);
   for (const g of Object.keys(GRADE_LV)) {
     const k = d.counts[g] || 0; if (!k) continue;

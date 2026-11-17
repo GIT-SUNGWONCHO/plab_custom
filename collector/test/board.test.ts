@@ -118,20 +118,20 @@ test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나�
   ];
   // 내 레벨(아마3) 이하 먼저: 3(아마2) → 아마3 중간들(6vs6 먼저, AI리포트는 무관) → 높은 3(2) → 추정 없음(8) → 마감(7)
   const board = buildBoard(rows, S, F);
-  // 초록 그룹(3,9,4,7,1,5,6)은 시작 시각 순: 9(11:00) → 12:00끼리는 다음 기준 → 1(13:00)
+  // 초록 그룹(아마3 이하 전부: 3,9,4,7,1,5,6,2)은 시작 시각 순: 9(11:00) → 12:00끼리는 레벨 칸 순(높은 3인 2는 뒤) → 1(13:00)
   // 마감(7)도 맨 아래로 빼지 않고 같은 규칙으로 섞임 (화면에서 기본은 '마감 제외')
-  assert.deepEqual(board.map((x) => x.id), [9, 3, 4, 7, 5, 6, 1, 2, 8]);
-  assert.equal(board.find((x) => x.id === 2)!.atOrBelowMine, false); // 아마3 중 높은 쪽
+  assert.deepEqual(board.map((x) => x.id), [9, 3, 4, 7, 5, 6, 2, 1, 8]);
+  assert.equal(board.find((x) => x.id === 2)!.atOrBelowMine, true); // 아마3이면 높은 쪽이어도 초록
   assert.equal(board.find((x) => x.id === 9)!.atOrBelowMine, true);
 
   // 마감임박(신청 15명 이상)은 내 레벨 이하 그룹 안에서 먼저
-  rows.find((r) => r.id === 2)!.confirm = 15; // 높은 3 → 내 레벨 이하 아님 → 그 그룹 안에서만 먼저
+  rows.find((r) => r.id === 2)!.confirm = 15; // 높은 3도 초록 → 마감임박끼리 레벨 칸 순(6 다음)
   rows.find((r) => r.id === 6)!.confirm = 16; // 아마3 중간, 5vs5
   rows.find((r) => r.id === 1)!.apply_status = "hurry"; // 플랩 hurry(6명+)는 무시
   const b2 = buildBoard(rows, S, F);
-  assert.deepEqual(b2.map((x) => x.id), [6, 9, 3, 4, 7, 5, 1, 2, 8]);
+  assert.deepEqual(b2.map((x) => x.id), [6, 2, 9, 3, 4, 7, 5, 1, 8]);
 
-  // 내 레벨을 아마4로 바꾸면 높은 3(2번)도 우선 그룹 → 마감임박끼리 레벨 낮은 6번 다음 2번
+  // 내 레벨을 아마4로 바꿔도 마감임박끼리 레벨 낮은 6번 다음 2번
   assert.deepEqual(buildBoard(rows, S, { ...F, myLevel: 7 }).map((x) => x.id).slice(0, 2), [6, 2]);
   assert.equal(b2.find((x) => x.id === 1)!.closingSoon, false);
   assert.equal(b2.find((x) => x.id === 7)!.closingSoon, false); // 마감은 마감임박 아님
