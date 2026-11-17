@@ -126,6 +126,9 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .ppl.hot .bar i { background: var(--red) }
 .row.full .ppl { color: var(--fg-3) }
 .row.full .ppl .bar i { background: var(--fg-3) }
+.row { cursor: pointer }
+a.status { text-decoration: none; display: block }
+a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none }
 .status { text-align: center; min-width: 72px; height: 34px; line-height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap }
 .status.available { background: var(--brand-soft); color: var(--brand-text) }
 .status.hurry { background: var(--red-strong); color: #ffffff }
@@ -374,14 +377,15 @@ function rowHtml(it) {
     `<span class="${it.is6v6 ? "on" : ""}">${esc((it.format || "").replace(/\s/g, ""))}</span>`,
     it.sex === 1 ? `<span>남자</span>` : `<span>남녀 모두</span>`,
   ].filter(Boolean).join(`<span class="dot">·</span>`) + (it.aiReport ? `<span class="badge ai">AI리포트</span>` : "");
-  return `<li><a class="row${it.full ? " full" : ""}" data-id="${it.id}" href="${esc(it.url)}" target="_blank" rel="noopener">
+  // 카드를 누르면 레벨 상세 팝업, 오른쪽 신청 버튼만 플랩으로
+  return `<li><div class="row${it.full ? " full" : ""}" data-id="${it.id}" role="button" tabindex="0" aria-label="${esc(it.time)} ${esc(it.title)} 레벨 상세">
     <div class="time"><span>${esc(it.time)}${(() => { const d = it.full ? "" : dday(it.deadlineAt); return d ? `<small>${esc(d)}</small>` : ""; })()}</span>${levelHtml(it)}</div>
     <div class="body">
       <div class="title">${esc(it.title)}</div>
       <div class="tags">${tags}</div>
       <div class="ppl${it.closingSoon ? " hot" : it.enoughPlayers ? " enough" : ""}"><span class="bar" aria-hidden="true"><i style="width:${it.max ? Math.min(100, Math.round((it.confirm / it.max) * 100)) : 0}%"></i></span>신청 ${it.confirm}/${it.max ?? "?"}명</div>
     </div>
-    <div class="status ${status[0]}">${status[1]}</div></a></li>`;
+    ${it.full ? `<span class="status full">마감</span>` : `<a class="status ${status[0]}" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="플랩에서 ${status[1]} 매치 열기">${status[1]}</a>`}</div></li>`;
 }
 
 let last = null;
@@ -439,9 +443,10 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <h4>레벨 보는 법</h4>
   <p><b>초록 레벨</b> 평균이 아마3 이하인 매치.</p>
   <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이라, 화면에서는 이 범위를 아마3.0~3.9로 바꿔서 보여줘요. 아마3.5가 가운데라, 3.2면 낮은 3, 3.8이면 높은 3. 평가된 신청자가 없으면 –.</p>
-  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 예상 평균이 높은 쪽 / 가운데 / 낮은 쪽에 있다는 뜻 (추정). 레벨 칩을 누르면 자세히 나와요.</p>
+  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 예상 평균이 높은 쪽 / 가운데 / 낮은 쪽에 있다는 뜻 (추정). 매치를 누르면 자세히 나와요.</p>
   <p><b>아이콘 없음</b> 평가된 신청자가 없어 평균이 없는 매치.</p>
-  <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
+  <p><b>매치 누르기</b> 레벨 상세(예상 평균, 신청자 레벨, 추이)가 열려요. 오른쪽 <b>신청가능</b> 버튼을 누르면 플랩 신청 화면으로 가요.</p>
+  <p><b>추이 그래프</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
   <h4>매치 카드</h4>
   <p><b>마감임박</b> 신청 15명 이상.</p>
   <p><b>신청 인원 막대</b> 회색 = 1~9명 (한 명만 들어와도 평균이 크게 흔들려요) · 초록 = 10~14명 · 빨강 = 15명 이상(마감임박).</p>
@@ -475,10 +480,14 @@ async function load() {
 }
 
 $("main").addEventListener("click", (e) => {
-  const lv = e.target.closest(".lv");
-  if (!lv) return;
-  e.preventDefault(); e.stopPropagation();
-  openHistory(Number(lv.closest("a.row").dataset.id));
+  if (e.target.closest("a.status")) return; // 신청 버튼은 플랩으로
+  const row = e.target.closest(".row[data-id]");
+  if (!row) return;
+  openHistory(Number(row.dataset.id));
+});
+$("main").addEventListener("keydown", (e) => {
+  const row = e.target.closest && e.target.closest(".row[data-id]");
+  if (row && (e.key === "Enter" || e.key === " ") && !e.target.closest("a")) { e.preventDefault(); openHistory(Number(row.dataset.id)); }
 });
 $("dates").addEventListener("click", (e) => { const b = e.target.closest(".date"); if (!b) return; prefs.date = b.dataset.date; save(); load(); });
 $("from").onchange = (e) => { prefs.from = e.target.value; if (prefs.from > prefs.to) { prefs.to = prefs.from; $("to").value = prefs.to; } save(); load(); };
@@ -879,8 +888,7 @@ async function openHistory(id) {
       return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${p.lv == null ? "–" : esc(short(p.label))}</span>${whoHtml(p)}</li>`;
     }).join("")}</ul></details>` : ""}
     </div>
-    <div class="hist-foot"><button class="btn sub" id="hist-close" type="button">닫기</button></div>`;
-  $("hist-close").onclick = () => bg.remove();
+    <div class="hist-foot"><a class="btn" href="https://www.plabfootball.com/match/${m.id}/" target="_blank" rel="noopener">${m.apply_status === "full" ? "플랩에서 보기" : "플랩에서 신청하기"}</a></div>`;
   $("hist-x").onclick = () => bg.remove();
   if (pts.length < 2) return;
 
