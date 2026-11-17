@@ -126,6 +126,21 @@ export function makeDeliver(db: D1Database, vapid: VapidKeys | null, pushFetch?:
   };
 }
 
+/**
+ * 알림을 켜거나 조건을 바꾼 순간: 그 조건에서 이미 대상인 매치는 '보낸 것'으로 표시해서 한꺼번에 오지 않게 함.
+ * 이후 새로 조건을 넘는 매치(또는 10명 → 마감임박처럼 다음 단계)만 알림이 감.
+ */
+export async function baselineAlerts(db: D1Database, sub: AlertSub, now = new Date()): Promise<number> {
+  const { rows, byMatch } = await loadBoardRows(db, sub.date);
+  const items = buildBoard(rows, byMatch, { date: sub.date, from: sub.time_from, to: sub.time_to, myLevel: MY_LEVEL }, now.getTime());
+  const events = pickEvents(items, sub);
+  if (!events.length) return 0;
+  const nowIso = now.toISOString();
+  await db.batch(events.map(({ item, kind }) =>
+    db.prepare("INSERT OR IGNORE INTO alert_log (topic, match_id, kind, ts) VALUES (?, ?, ?, ?)").bind(sub.topic, item.id, kind, nowIso)));
+  return events.length;
+}
+
 export async function runAlerts(db: D1Database, deliver: Deliver, now = new Date()): Promise<AlertRunResult> {
   const result: AlertRunResult = { sent: 0, failed: 0, skippedQuiet: false };
   const today = kstDate(now);

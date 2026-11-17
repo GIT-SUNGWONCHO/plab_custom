@@ -160,3 +160,16 @@ test("웹푸시: 구독이 있는 기기는 웹푸시로, 410이면 구독 지�
   assert.equal(await d("plabradar-pushpushpush", msg), false);
   assert.equal(await asD1(db).prepare("SELECT COUNT(*) AS n FROM push_sub").first("n"), 0);
 });
+
+test("알림을 켤 때 이미 대상인 매치는 안 보내고, 이후 새로 대상이 된 것만", async () => {
+  addMatch(1, { confirm: 12, avg: "아마추어3" }); // 켜기 전부터 10명 넘음
+  const env = { DB: asD1(db), ADMIN_TOKEN: "secret" } as Env;
+  const put = await handleFetch(new Request("https://x.dev/api/alerts", { method: "PUT", body: JSON.stringify({ topic: TOPIC, date: "2026-11-22", from: "10:00", to: "17:00", push: PUSH }) }), env, undefined, ntfy);
+  assert.equal(put.status, 200);
+  assert.equal((await runAlerts(asD1(db), ntfy, NOW)).sent, 0);
+  addMatch(2, { time: "13:00", confirm: 11, avg: "아마추어2" }); // 켠 뒤 새로 대상
+  db.db.prepare("UPDATE match SET confirm = 15 WHERE id = 1").run(); // 이미 보낸 것으로 친 매치가 마감임박으로 → 다음 단계는 감
+  db.db.prepare("UPDATE snapshot SET confirm = 15 WHERE match_id = 1").run();
+  await runAlerts(asD1(db), ntfy, new Date(NOW.getTime() + 60_000));
+  assert.deepEqual(sent.map((m) => m.title).sort(), ["13:00 아마2 매치 11명 모임", "마감임박 12:00 아마3"].sort());
+});

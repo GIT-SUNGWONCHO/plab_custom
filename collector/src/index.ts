@@ -2,7 +2,7 @@
 //  - scheduled: 매분 크론 → 수집기 실행
 //  - fetch: 보드 API(공개) + 관리 API (ADMIN_TOKEN 필요)
 
-import { type Deliver, isPushEndpoint, makeDeliver, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, TOPIC_RE } from "./alerts.ts";
+import { baselineAlerts, type Deliver, isPushEndpoint, makeDeliver, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, TOPIC_RE } from "./alerts.ts";
 import type { VapidKeys } from "./webpush.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
@@ -190,6 +190,11 @@ export async function handleFetch(
            ON CONFLICT(topic) DO UPDATE SET endpoint = excluded.endpoint, p256dh = excluded.p256dh, auth = excluded.auth, updated_at = excluded.updated_at`,
         ).bind(b.topic, p.endpoint, p.keys!.p256dh, p.keys!.auth, nowIso, nowIso).run();
       }
+      // 켜는 순간 이미 대상인 매치는 보낸 것으로 (한꺼번에 오지 않게)
+      await baselineAlerts(env.DB, {
+        topic: b.topic, date: b.date, time_from: b.from, time_to: b.to,
+        only6: b.only6 ? 1 : 0, only_ai: b.onlyAI ? 1 : 0, only_tf: b.onlyTF ? 1 : 0,
+      });
       return json({ ok: true });
     }
     return json({ error: "method" }, 405);
