@@ -173,7 +173,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .hist-log summary::after { content: " ▾"; color: var(--fg-3) }
 .hist-log[open] summary::after { content: " ▴" }
 .hist-head .sub { font-size: 13px; color: var(--fg-3); word-break: keep-all }
-.readout { font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; min-height: 18px }
+.chart-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 18px }
+.readout { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap }
 .readout b { color: var(--fg) }
 .chart { display: flex; flex-direction: column; gap: 4px }
 .chart h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3) }
@@ -513,7 +514,7 @@ function stepChart(el, pts, t0, t1, dom, ticks, h, xTicks) {
     open = true;
   });
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img">${g}${h > 0 && el.dataset.area ? `<path class="area" d="${area}"/>` : ""}<path class="line" d="${d}"/>
-    <line class="cross" y1="${T}" y2="${H - B}" x1="-10" x2="-10"/><circle class="dot" r="4" cx="-10" cy="-10"/></svg>`;
+    <line class="cross" y1="${T}" y2="${H - B}" x1="-10" x2="-10" style="visibility:hidden"/><circle class="dot" r="4" cx="-10" cy="-10" style="visibility:hidden"/></svg>`;
   return { x, y, svg: el.firstElementChild, W, L, R };
 }
 
@@ -571,14 +572,14 @@ async function openHistory(id) {
   const e = data.estimate;
   // 아마추어 레벨일 때만 '아마 2.6~3.1'처럼 소수로 보여줌 (범위가 레벨 하나보다 좁을 때)
   // 추정 평균을 '아마3.2~3.4'처럼 보여줌 (범위가 레벨 구간보다 좁을 때만)
-  const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` · 추정 평균 ${levelRangeText(e.lo, e.hi)}` : "";
+  const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` (추정평균 ${levelRangeText(e.lo, e.hi)})` : "";
+  const nowLv = m.average_level && m.average_level !== "루키" ? short(m.average_level) : null;
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 지금 평균 ${esc(m.average_level && m.average_level !== "루키" ? short(m.average_level) : "–")} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명${range}</span></div>
+      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명<br>평균 ${esc(nowLv || "–")}${nowLv ? esc(range) : ""}</span></div>
     <div class="hist-body">
     ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
-    <div class="readout" id="readout" aria-live="polite"></div>
-    <div class="chart"><h3>평균 레벨</h3><div id="c-lv"></div></div>
+    <div class="chart"><div class="chart-top"><h3>평균 레벨</h3><span class="readout" id="readout" aria-live="polite"></span></div><div id="c-lv"></div></div>
     <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
     ${pts.length ? `<details class="hist-log"><summary>상세 이력 ${pts.length}건</summary><ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 60).map((p, i, arr) => {
       const prev = arr[i + 1];
@@ -608,7 +609,7 @@ async function openHistory(id) {
   // 눈금이 시간 단위인데 자정이 하나도 없으면 첫 눈금에 날짜를 붙임
   if (stepH < 24 && xt.length && !xt.some((x) => x[2])) { const d = kst(new Date(xt[0][0]).toISOString()); xt[0][1] = `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${xt[0][1]}`; }
   $("c-lv")._vt = xt; $("c-n")._vt = xt;
-  if (!hasLv) $("c-lv").parentElement.innerHTML = `<h3>평균 레벨</h3><p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
+  if (!hasLv) $("c-lv").outerHTML = `<p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
   const A = !hasLv ? null : stepChart($("c-lv"), pts.map((p) => ({ t: p.t, v: p.lv })), t0, t1, [lo, hi], lvTicks, 130, null);
   const B = stepChart($("c-n"), pts.map((p) => ({ t: p.t, v: p.n })), t0, t1, [0, maxN], nTicks, 110, xt);
 
@@ -620,6 +621,7 @@ async function openHistory(id) {
       const cx = C.x(p.t);
       const cross = C.svg.querySelector(".cross"), dot = C.svg.querySelector(".dot");
       cross.setAttribute("x1", cx); cross.setAttribute("x2", cx);
+      cross.style.visibility = "visible";
       dot.style.visibility = v == null ? "hidden" : "visible"; // 평균 없는 시점은 점 숨김
       if (v == null) continue;
       dot.setAttribute("cx", cx); dot.setAttribute("cy", C.y(v));
@@ -635,7 +637,6 @@ async function openHistory(id) {
     C.svg.addEventListener("pointerdown", (ev) => pick(ev, C));
     C.svg.addEventListener("pointermove", (ev) => { if (ev.pointerType === "mouse" || ev.buttons) pick(ev, C); });
   }
-  show(pts.length - 1);
 }
 refreshBell();
 load();
