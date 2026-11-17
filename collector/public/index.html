@@ -217,13 +217,15 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .hist-lv .hn { text-align: center; font-size: 12px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; line-height: 1 }
 .hist-lv .hb { border-radius: 5px 5px 2px 2px; min-height: 6px }
 .hist-lv .hl { text-align: center; font-size: 10.5px; color: var(--fg-3); white-space: nowrap; letter-spacing: -0.04em }
-.hist-lv .g-r .hb { background: transparent; box-shadow: inset 0 0 0 1.5px var(--border) }
+.hist-lv .g-r .hb { background: repeating-linear-gradient(135deg, var(--fg-3) 0 2px, transparent 2px 6px); opacity: .55 }
 .hist-lv .g-r .hn { color: var(--fg-3) }
 .hist-lv .g-b .hb { background: var(--fg-3); opacity: .45 }
 .hist-lv .g-a .hb { background: var(--fg-3) }
 .hist-lv .g-s .hb { background: var(--fg-2) }
 .hist-lv .g-p .hb { background: var(--fg) }
-.hist-lv .top .hb { background: var(--brand); opacity: 1 }
+.hist-lv .avg .hb { background: var(--brand); opacity: 1 }
+.hist-lv .avg .hb.stub { height: 4px; min-height: 4px; border-radius: 2px }
+.hist-lv .avg .hl { color: var(--fg); font-weight: 700 }
 .pdetail summary { cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600; color: var(--fg-2); padding: 2px 0 }
 .pdetail summary::-webkit-details-marker { display: none }
 .pdetail summary::after { content: " ▾"; color: var(--fg-3) }
@@ -784,14 +786,14 @@ function peopleHtml(d, r) {
   const lo = Math.min(...used), hi = Math.max(...used);
   const rk = d.counts.rookie || 0;
   const maxN = Math.max(rk, ...per);
-  const topN = Math.max(...per);
-  const lime = topN >= 2 && per.filter((n) => n === topN).length === 1; // 가장 많은 레벨이 하나일 때만 강조
-  const col = (cls, n, label) => `<li class="${cls}"><span class="hc">${n ? `<span class="hn">${n}</span><span class="hb" style="height:${Math.max(10, (n / maxN) * 100)}%"></span>` : ""}</span><span class="hl">${esc(label)}</span></li>`;
+  // 라임 = 예상 평균이 있는 레벨 (위 '지금 레벨'과 연결)
+  let avgL = 1; while (avgL < 12 && r.mean * 10 >= Math.round(SCORE_BANDS[avgL][1] * 10) + 0.5) avgL++;
+  const col = (cls, n, label) => `<li class="${cls}"><span class="hc">${n ? `<span class="hn">${n}</span><span class="hb" style="height:${Math.max(10, (n / maxN) * 100)}%"></span>` : cls.includes("avg") ? `<span class="hb stub"></span>` : ""}</span><span class="hl">${esc(label)}</span></li>`;
   const cols = [];
   if (rk) cols.push(col("g-r", rk, "루키"));
-  for (let l = lo; l <= hi; l++) {
+  for (let l = Math.min(lo, avgL); l <= Math.max(hi, avgL); l++) {
     const g = gradeOf[l] || Object.entries(GRADE_LV).find(([, [a, b]]) => l >= a && l <= b)[0];
-    cols.push(col(`${GRADE_CLASS[g]}${lime && per[l] === topN ? " top" : ""}`, per[l], hi - lo >= 8 ? short(LV[l]).replace(/^비기너/, "비") : short(LV[l])));
+    cols.push(col(`${GRADE_CLASS[g]}${l === avgL ? " avg" : ""}`, per[l], hi - lo >= 8 ? short(LV[l]).replace(/^비기너/, "비") : short(LV[l])));
   }
   const chips = [`<ul class="hist-lv">${cols.join("")}</ul>`];
   const pct = bc ? Math.round(bc.prob * 100) : 0;
