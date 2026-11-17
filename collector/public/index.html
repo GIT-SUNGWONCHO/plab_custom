@@ -75,6 +75,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .sel.bare::after { content: none }
 .sel::after { content: "▾"; position: absolute; right: 0; pointer-events: none; font-size: 10px; color: var(--fg-3) }
 
+.intro { margin-top: 12px; padding: 14px 14px 12px; border-radius: 14px; background: var(--brand-soft); display: flex; flex-direction: column; gap: 8px }
+.intro h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--fg) }
+.intro ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--fg-2); word-break: keep-all }
+.intro ol b { color: var(--fg) }
+.intro .btn { align-self: flex-end }
 .help { margin-top: 12px; border-radius: 12px; background: var(--muted) }
 .help summary { cursor: pointer; padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--fg-2); list-style: none }
 .help summary::-webkit-details-marker { display: none }
@@ -127,7 +132,9 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .row.full .ppl { color: var(--fg-3) }
 .row.full .ppl .bar i { background: var(--fg-3) }
 .row { cursor: pointer }
-a.status { text-decoration: none; display: block }
+a.status { text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 3px }
+.status .ext { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .8 }
+.title .chev { margin-left: 4px; color: var(--fg-3); font-weight: 400 }
 a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none }
 .status { text-align: center; min-width: 72px; height: 34px; line-height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap }
 .status.available { background: var(--brand-soft); color: var(--brand-text) }
@@ -381,11 +388,11 @@ function rowHtml(it) {
   return `<li><div class="row${it.full ? " full" : ""}" data-id="${it.id}" role="button" tabindex="0" aria-label="${esc(it.time)} ${esc(it.title)} 레벨 상세">
     <div class="time"><span>${esc(it.time)}${(() => { const d = it.full ? "" : dday(it.deadlineAt); return d ? `<small>${esc(d)}</small>` : ""; })()}</span>${levelHtml(it)}</div>
     <div class="body">
-      <div class="title">${esc(it.title)}</div>
+      <div class="title">${esc(it.title)}<span class="chev" aria-hidden="true">›</span></div>
       <div class="tags">${tags}</div>
       <div class="ppl${it.closingSoon ? " hot" : it.enoughPlayers ? " enough" : ""}"><span class="bar" aria-hidden="true"><i style="width:${it.max ? Math.min(100, Math.round((it.confirm / it.max) * 100)) : 0}%"></i></span>신청 ${it.confirm}/${it.max ?? "?"}명</div>
     </div>
-    ${it.full ? `<span class="status full">마감</span>` : `<a class="status ${status[0]}" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="플랩에서 ${status[1]} 매치 열기">${status[1]}</a>`}</div></li>`;
+    ${it.full ? `<span class="status full">마감</span>` : `<a class="status ${status[0]}" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="플랩에서 ${status[1]} 매치 열기">${status[1]}<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a>`}</div></li>`;
 }
 
 let last = null;
@@ -432,13 +439,25 @@ function render(data) {
     return;
   }
   $("main").innerHTML =
+    (prefs.introSeen ? "" : INTRO) +
     HELP +
     `<ul class="list">${items.map(rowHtml).join("")}</ul>`;
   const h = $("help"); h.open = helpOpen; h.ontoggle = () => { helpOpen = h.open; };
+  const ok = $("intro-ok"); if (ok) ok.onclick = () => { prefs.introSeen = true; save(); $("intro").remove(); };
 }
 let helpOpen = false;
 
 const tierIc = (k) => `<span class="tier-inline ${k}">${TIER_SVG[k]}</span>`;
+// 첫 방문 안내 카드 (한 번 닫으면 다시 안 뜸)
+const INTRO = `<section class="intro" id="intro" aria-label="처음 사용 안내">
+  <h3>처음이세요? 이렇게 써요</h3>
+  <ol>
+    <li><b>매치를 누르면</b> 레벨 상세가 열려요. 유력 평균, 신청자 레벨 분포, 추이를 볼 수 있어요.</li>
+    <li><b>신청가능 ↗</b>을 누르면 플랩 신청 화면으로 가요.</li>
+    <li><b>🔔</b>을 누르면 지금 필터 조건으로 알림을 받을 수 있어요. 초록(평균 아마3 이하) 매치가 10명·마감임박이 되면 알려줘요.</li>
+  </ol>
+  <button class="btn small" id="intro-ok" type="button">알겠어요</button>
+</section>`;
 const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 법</summary><div class="help-body">
   <h4>레벨 보는 법</h4>
   <p><b>초록 레벨</b> 평균이 아마3 이하인 매치.</p>
@@ -891,7 +910,8 @@ async function openHistory(id) {
       return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${p.lv == null ? "–" : esc(short(p.label))}</span>${whoHtml(p)}</li>`;
     }).join("")}</ul></details>` : ""}
     </div>
-    <div class="hist-foot"><a class="btn" href="https://www.plabfootball.com/match/${m.id}/" target="_blank" rel="noopener">${m.apply_status === "full" ? "플랩에서 보기" : "플랩에서 신청하기"}</a></div>`;
+    <div class="hist-foot"><button class="btn sub" id="hist-close" type="button">닫기</button></div>`;
+  $("hist-close").onclick = () => bg.remove();
   $("hist-x").onclick = () => bg.remove();
   if (pts.length < 2) return;
 
