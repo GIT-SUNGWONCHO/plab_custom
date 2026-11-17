@@ -53,6 +53,13 @@ export function pollDue(s: PollState, now: number): { due: boolean; priority: nu
   return { due, priority: urgent + elapsed / interval };
 }
 
+/** 집중 감시 시간대: 1분마다 목록을 보고 인원이 바뀐 매치만 바로 확인 (state 'hot_windows'에 JSON 배열로 저장) */
+export interface HotWindow {
+  date: string; // KST 'YYYY-MM-DD'
+  from: string; // 'HH:MM'
+  to: string;
+}
+
 export interface Rule {
   id: number;
   stadiumGroupIds: number[];

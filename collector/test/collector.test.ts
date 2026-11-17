@@ -227,6 +227,23 @@ describe("수집기", () => {
     assert.equal(db.rows("SELECT last_polled_at FROM match WHERE id = 2")[0].last_polled_at, near.toISOString());
   });
 
+  test("집중 감시 시간대: 목록에서 인원이 바뀐 매치는 주기와 상관없이 바로 폴링", async () => {
+    db.db.prepare("INSERT INTO state (key, value) VALUES ('hot_windows', ?)").run(JSON.stringify([{ date: "2026-11-14", from: "10:00", to: "12:00" }]));
+    await run(T0);
+    const polledAt = (id: number) => db.rows("SELECT last_polled_at FROM match WHERE id = ?", id)[0].last_polled_at;
+    assert.equal(polledAt(2), T0.toISOString());
+    // 2분 뒤: 보통이면 5분 주기라 안 봄. 2번(11:00, 감시 시간대 안)에 한 명 들어옴, 3번(13:00, 시간대 밖)도 한 명
+    plab.matches.get(2)!.confirm = 6;
+    plab.matches.get(3)!.confirm = 17;
+    const r = await run(at(2));
+    assert.equal(polledAt(2), at(2).toISOString());
+    assert.equal(polledAt(3), T0.toISOString()); // 시간대 밖은 원래 주기
+    assert.equal(r.snapshots, 1);
+    // 변화 없으면 다시 폴링 안 함
+    await run(at(3));
+    assert.equal(polledAt(2), at(2).toISOString());
+  });
+
   test("목록에 새로 열린 매치는 다음 탐색 주기에 추가", async () => {
     await run(T0);
     plab.add({ id: 7, date: "2026-11-14", time: "14:00" });

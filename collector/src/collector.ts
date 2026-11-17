@@ -2,7 +2,7 @@
 
 import { levelToNum } from "./levels.ts";
 import { PlabClient, PlabNotFoundError, type LevelGraph, type MatchDetail } from "./plab.ts";
-import { CONFIG, deadlineOf, inTimeWindow, pollDue, type Rule } from "./schedule.ts";
+import { CONFIG, deadlineOf, inTimeWindow, pollDue, type HotWindow, type Rule } from "./schedule.ts";
 import { kstDate, kstTime, upcomingKstDates, weekdayOf } from "./time.ts";
 
 export interface RunResult {
@@ -110,8 +110,31 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
 
   // ---------- 2. 폴링 ----------
   const { results: tracked } = await db
-    .prepare("SELECT id, schedule, deadline_at, last_polled_at, poll_errors FROM match WHERE tracking = 1")
-    .all<MatchRow>();
+    .prepare("SELECT id, schedule, deadline_at, last_polled_at, poll_errors, confirm FROM match WHERE tracking = 1")
+    .all<MatchRow & { confirm: number | null }>();
+
+  // ---------- 1-2. 집중 감시: 목록(매분)으로 인원이 바뀐 매치를 찾아 바로 폴링 ----------
+  const forced = new Set<number>();
+  const hotRaw = await db.prepare("SELECT value FROM state WHERE key = 'hot_windows'").first<string>("value");
+  const hot: HotWindow[] = hotRaw ? JSON.parse(hotRaw) : [];
+  const today = kstDate(now);
+  const groups = [...new Set(rules.flatMap((r) => r.stadiumGroupIds))];
+  if (groups.length) {
+    const byId = new Map(tracked.map((m) => [m.id, m]));
+    for (const w of hot.filter((w) => w.date >= today)) {
+      if (budgetLeft() < 6) break;
+      try {
+        const listed = await client.listMatches(w.date, groups);
+        for (const l of listed) {
+          if (!inTimeWindow(l.kstTime, w.from, w.to)) continue;
+          const m = byId.get(l.id);
+          if (m && l.confirm != null && l.confirm !== m.confirm) forced.add(m.id);
+        }
+      } catch (e) {
+        result.errors.push(`hot ${w.date}: ${String(e)}`);
+      }
+    }
+  }
 
   // 마감이 지난 매치는 추적 종료 (마지막 상태는 직전 폴링에 이미 기록됨)
   const stops: D1PreparedStatement[] = [];
@@ -124,7 +147,11 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
   }
 
   const due = live
-    .map((m) => ({ m, ...pollDue({ schedule: m.schedule, deadlineAt: m.deadline_at, lastPolledAt: m.last_polled_at }, now.getTime()) }))
+    .map((m) => {
+      const d = pollDue({ schedule: m.schedule, deadlineAt: m.deadline_at, lastPolledAt: m.last_polled_at }, now.getTime());
+      // 집중 감시에서 인원 변화가 보인 매치는 주기와 상관없이 맨 먼저
+      return forced.has(m.id) ? { m, due: true, priority: 1e6 } : { m, ...d };
+    })
     .filter((x) => x.due)
     .sort((a, b) => b.priority - a.priority);
 

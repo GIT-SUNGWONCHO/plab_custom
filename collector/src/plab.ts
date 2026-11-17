@@ -23,6 +23,8 @@ export interface ListedMatch {
   levelCode: number | null;
   sex: number | null; // 0 무관, 1 남자, -1 여자
   features: string[];
+  /** 목록에 보이는 신청 인원 ("11/18" → 11). 형식이 다르면 null */
+  confirm: number | null;
 }
 
 export interface MatchDetail {
@@ -79,6 +81,10 @@ const optNum = (v: unknown): number | null => (typeof v === "number" && Number.i
 const featureCodes = (v: unknown): string[] =>
   Array.isArray(v) ? v.flatMap((f) => (isObj(f) && typeof f.code === "string" ? [f.code] : [])) : [];
 const GENDER_LABEL: Record<string, number> = { 남자: 1, 여자: -1 };
+const listConfirm = (p: unknown): number | null => {
+  const m = isObj(p) && typeof p.label === "string" ? /^(\d+)\s*\/\s*\d+$/.exec(p.label) : null;
+  return m ? Number(m[1]) : null;
+};
 
 // ---------- 파서 (테스트에서 샘플 JSON으로 직접 검증) ----------
 export function parseList(body: unknown): { matches: ListedMatch[]; next: string | null } {
@@ -99,6 +105,7 @@ export function parseList(body: unknown): { matches: ListedMatch[]; next: string
       levelCode: optNum(a.level_code),
       sex: typeof a.gender === "string" ? (GENDER_LABEL[a.gender] ?? null) : 0,
       features: featureCodes(a.features),
+      confirm: listConfirm(a.participants),
     };
   });
   return { matches, next: optStr(data.next) };
