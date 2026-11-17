@@ -21,5 +21,15 @@ type = "Text"
 globs = ["**/*.html", "**/*.ps1"]
 fallthrough = false
 
+# 앱 아이콘(PNG)은 바이너리로 묶음
+[[rules]]
+type = "Data"
+globs = ["**/*.png"]
+fallthrough = false
+
+# 웹푸시 공개키 (공개돼도 되는 값. 개인키는 시크릿 VAPID_PRIVATE_JWK)
+[vars]
+VAPID_PUBLIC_KEY = "BLD8OcFGVCnJSd2giDFjO43Zo0ImnvvAgYjs00kYX7WVawYeWAQ1Vj7FWjGepb0WjDbo46arvzhkjyMM4cy5IqE"
+
 [observability]
 enabled = true

@@ -2,7 +2,8 @@
 //  - scheduled: 매분 크론 → 수집기 실행
 //  - fetch: 보드 API(공개) + 관리 API (ADMIN_TOKEN 필요)
 
-import { MAX_SENDS_PER_DAY, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, ntfyFetchWith, OUTBOX_MAX_AGE_MS, outboxFetch, RELAY_ALIVE_MS, sendNtfy, sentTodayCount, TOPIC_RE } from "./alerts.ts";
+import { type Deliver, isPushEndpoint, makeDeliver, MAX_SENDS_PER_DAY, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, ntfyFetchWith, OUTBOX_MAX_AGE_MS, outboxFetch, RELAY_ALIVE_MS, sentTodayCount, TOPIC_RE } from "./alerts.ts";
+import type { VapidKeys } from "./webpush.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
 import { levelBucket, traceLevels, type SnapLevel } from "./estimate.ts";
@@ -18,6 +19,15 @@ export interface Env {
   NTFY_RELAY_SECRET?: string;
   /** PC 발송기 비밀값. 있으면 알림을 alert_outbox에 쌓고 PC가 가져가서 보냄 */
   PC_RELAY_SECRET?: string;
+  /** 웹푸시 VAPID 공개키(wrangler.toml vars) · 개인키 JWK(시크릿) · 연락처 */
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_JWK?: string;
+  VAPID_SUBJECT?: string;
+}
+
+export function vapidOf(env: Env): VapidKeys | null {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_JWK) return null;
+  return { publicKey: env.VAPID_PUBLIC_KEY, privateJwk: env.VAPID_PRIVATE_JWK, subject: env.VAPID_SUBJECT || "https://plab-radar.oroloov.workers.dev" };
 }
 
 /** 알림 발송 경로: PC 발송기(설정돼 있으면) → 아니면 구글 중계/직접 */
@@ -75,6 +85,7 @@ export async function handleFetch(
   env: Env,
   client = new PlabClient(),
   ntfyFetch: FetchFn = makeNtfyFetch(env),
+  deliver: Deliver = makeDeliver(env.DB, ntfyFetch, vapidOf(env)),
 ): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -122,7 +133,7 @@ export async function handleFetch(
     return json({ error: "not found" }, 404);
   }
 
-  const isPublic = (path === "/api/board" && req.method === "GET") || path === "/api/alerts" || path === "/api/alerts/test"
+  const isPublic = (path === "/api/board" && req.method === "GET") || path === "/api/alerts" || path === "/api/alerts/test" || path === "/api/push/key"
     || (!!historyMatch && req.method === "GET");
 
   // --- 매치 레벨·인원 추이 (공개, 화면 팝업용)
@@ -149,6 +160,11 @@ export async function handleFetch(
   }
   if (!isPublic && !authorized(req, env)) return json({ error: "unauthorized" }, 401);
 
+  // --- 웹푸시 공개키 (화면에서 구독할 때 씀)
+  if (path === "/api/push/key" && req.method === "GET") {
+    return json({ publicKey: vapidOf(env)?.publicKey ?? null });
+  }
+
   // --- 알림 구독 (공개: 토픽 자체가 비밀번호 역할)
   if (path === "/api/alerts") {
     const topic = req.method === "GET" || req.method === "DELETE"
@@ -156,13 +172,17 @@ export async function handleFetch(
       : "";
     if (req.method === "GET") {
       if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
-      return json(await env.DB.prepare("SELECT * FROM alert_sub WHERE topic = ?").bind(topic).first());
+      const row = await env.DB.prepare("SELECT * FROM alert_sub WHERE topic = ?").bind(topic).first();
+      if (!row) return json(null);
+      const push = await env.DB.prepare("SELECT 1 AS x FROM push_sub WHERE topic = ?").bind(topic).first();
+      return json({ ...row, channel: push ? "push" : "ntfy" });
     }
     if (req.method === "DELETE") {
       if (!TOPIC_RE.test(topic)) return json({ error: "topic 형식 오류" }, 400);
       await env.DB.batch([
         env.DB.prepare("DELETE FROM alert_sub WHERE topic = ?").bind(topic),
         env.DB.prepare("DELETE FROM alert_log WHERE topic = ?").bind(topic),
+        env.DB.prepare("DELETE FROM push_sub WHERE topic = ?").bind(topic),
       ]);
       return json({ ok: true });
     }
@@ -172,6 +192,13 @@ export async function handleFetch(
       if (typeof b.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return json({ error: "date 필요" }, 400);
       if (typeof b.from !== "string" || !TIME_RE.test(b.from) || typeof b.to !== "string" || !TIME_RE.test(b.to)) {
         return json({ error: "from/to: 'HH:MM'" }, 400);
+      }
+      // 받는 방법: "push"면 이 기기의 웹푸시 구독 정보가 필요, "ntfy"면 웹푸시 구독을 지움
+      const p = b.push as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | undefined;
+      const wantPush = b.channel === "push";
+      if (wantPush && !(p && typeof p.endpoint === "string" && isPushEndpoint(p.endpoint)
+        && typeof p.keys?.p256dh === "string" && typeof p.keys?.auth === "string" && p.keys.p256dh.length < 200 && p.keys.auth.length < 100)) {
+        return json({ error: "웹푸시 구독 정보가 올바르지 않아요" }, 400);
       }
       const nowIso = new Date().toISOString();
       // 구독 수 상한 (새 토픽만)
@@ -186,6 +213,14 @@ export async function handleFetch(
          ON CONFLICT(topic) DO UPDATE SET date = excluded.date, time_from = excluded.time_from, time_to = excluded.time_to,
            only6 = excluded.only6, only_ai = excluded.only_ai, only_tf = excluded.only_tf, updated_at = excluded.updated_at`,
       ).bind(b.topic, b.date, b.from, b.to, b.only6 ? 1 : 0, b.onlyAI ? 1 : 0, b.onlyTF ? 1 : 0, nowIso, nowIso).run();
+      if (wantPush) {
+        await env.DB.prepare(
+          `INSERT INTO push_sub (topic, endpoint, p256dh, auth, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(topic) DO UPDATE SET endpoint = excluded.endpoint, p256dh = excluded.p256dh, auth = excluded.auth, updated_at = excluded.updated_at`,
+        ).bind(b.topic, p!.endpoint, p!.keys!.p256dh, p!.keys!.auth, nowIso, nowIso).run();
+      } else if (b.channel === "ntfy") {
+        await env.DB.prepare("DELETE FROM push_sub WHERE topic = ?").bind(b.topic).run();
+      }
       return json({ ok: true });
     }
     return json({ error: "method" }, 405);
@@ -209,13 +244,14 @@ export async function handleFetch(
     }
     await env.DB.prepare("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
       .bind(key, new Date().toISOString()).run();
-    const ok = await sendNtfy(ntfyFetch, topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: "white_check_mark" })
+    const ok = await deliver(topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: "white_check_mark", tag: "test" })
       .catch(() => false);
     if (ok) {
       await env.DB.prepare("INSERT OR IGNORE INTO alert_log (topic, match_id, kind, ts) VALUES (?, ?, 'test', ?)")
         .bind(topic, -Math.floor(now.getTime() / 1000), now.toISOString()).run();
     }
-    if (ok && env.PC_RELAY_SECRET) {
+    const viaPush = !!(vapidOf(env) && (await env.DB.prepare("SELECT 1 AS x FROM push_sub WHERE topic = ?").bind(topic).first()));
+    if (ok && env.PC_RELAY_SECRET && !viaPush) {
       const seen = await env.DB.prepare("SELECT value FROM state WHERE key = 'relay_last_seen'").first<string>("value");
       return json({ ok, queued: true, relayAlive: !!seen && Date.now() - Date.parse(seen) < RELAY_ALIVE_MS });
     }

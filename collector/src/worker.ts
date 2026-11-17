@@ -4,9 +4,23 @@
 import page from "../public/index.html";
 import relayInstall from "../relay/install.ps1";
 import relayScript from "../relay/plab-relay.ps1";
-import { runAlerts } from "./alerts.ts";
+import icon192 from "../public/icons/icon-192.png";
+import icon512 from "../public/icons/icon-512.png";
+import appleIcon from "../public/icons/apple-touch-icon.png";
+import { MANIFEST, SW_JS } from "./pwa.ts";
+
+// 정적 파일: 경로 → [내용, 형식]
+const STATIC: Record<string, [BodyInit, string]> = {
+  "/sw.js": [SW_JS, "text/javascript; charset=utf-8"],
+  "/manifest.webmanifest": [MANIFEST, "application/manifest+json; charset=utf-8"],
+  "/icons/icon-192.png": [icon192, "image/png"],
+  "/icons/icon-512.png": [icon512, "image/png"],
+  "/icons/apple-touch-icon.png": [appleIcon, "image/png"],
+  "/apple-touch-icon.png": [appleIcon, "image/png"],
+};
+import { makeDeliver, runAlerts } from "./alerts.ts";
 import { runCollector } from "./collector.ts";
-import { handleFetch, makeNtfyFetch, type Env } from "./index.ts";
+import { handleFetch, makeNtfyFetch, vapidOf, type Env } from "./index.ts";
 import { PlabClient } from "./plab.ts";
 
 export default {
@@ -21,7 +35,8 @@ export default {
           console.error("collector failed", e);
         }
         // 수집 직후 알림 판단 (수집 실패와 상관없이 실행)
-        const a = await runAlerts(env.DB, makeNtfyFetch(env), now).catch((e) => {
+        const ntfyFetch = makeNtfyFetch(env);
+        const a = await runAlerts(env.DB, ntfyFetch, now, makeDeliver(env.DB, ntfyFetch, vapidOf(env))).catch((e) => {
           console.error("alerts error", e);
           return null;
         });
@@ -37,6 +52,12 @@ export default {
           headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" },
         }),
       );
+    }
+    const st = req.method === "GET" ? STATIC[pathname] : undefined;
+    if (st) {
+      // 서비스워커는 매번 새로 확인해야 업데이트가 바로 반영됨
+      const cache = pathname === "/sw.js" ? "no-cache" : "public, max-age=86400";
+      return Promise.resolve(new Response(st[0], { headers: { "content-type": st[1], "cache-control": cache } }));
     }
     // PC 알림 발송기 설치 스크립트 (비밀값 없음, 공개)
     const ps = pathname === "/relay/install.ps1" ? relayInstall : pathname === "/relay/plab-relay.ps1" ? relayScript : null;

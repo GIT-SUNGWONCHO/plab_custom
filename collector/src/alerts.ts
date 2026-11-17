@@ -9,6 +9,7 @@ import { buildBoard, type BoardItem, type BoardMatchRow } from "./board.ts";
 import type { SnapLevel } from "./estimate.ts";
 import type { FetchFn } from "./plab.ts";
 import { kstDate } from "./time.ts";
+import { sendWebPush, type VapidKeys } from "./webpush.ts";
 
 export const NTFY_BASE = "https://ntfy.sh";
 export const TOPIC_RE = /^[A-Za-z0-9_-]{12,64}$/;
@@ -173,7 +174,38 @@ export async function sentTodayCount(db: D1Database, now: Date): Promise<number>
     .first<number>("n")) ?? 0;
 }
 
-export async function runAlerts(db: D1Database, fetchFn: FetchFn, now = new Date()): Promise<AlertRunResult> {
+export type AlertMsg = { title: string; body: string; tags: string; click?: string; tag?: string };
+/** 한 기기(토픽)로 알림 한 건 보내기 */
+export type Deliver = (topic: string, msg: AlertMsg) => Promise<boolean>;
+
+/** 웹푸시 허용 푸시 서버 (아무 주소로나 요청을 보내지 않게) */
+export const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /(^|\.)push\.apple\.com$/, /^updates\.push\.services\.mozilla\.com$/, /(^|\.)notify\.windows\.com$/];
+export const isPushEndpoint = (u: string) => {
+  try { const x = new URL(u); return x.protocol === "https:" && PUSH_HOSTS.some((r) => r.test(x.hostname)); } catch { return false; }
+};
+
+/**
+ * 보내는 방법 고르기: 이 기기에 웹푸시 구독이 있으면 웹푸시, 없으면 ntfy.
+ * 웹푸시 서버가 "구독 없음(404/410)"이라고 하면 저장된 구독을 지움 (앱을 지웠거나 권한을 끈 경우).
+ */
+export function makeDeliver(db: D1Database, ntfyFetch: FetchFn, vapid: VapidKeys | null, pushFetch?: FetchFn): Deliver {
+  return async (topic, msg) => {
+    const sub = vapid
+      ? await db.prepare("SELECT endpoint, p256dh, auth FROM push_sub WHERE topic = ?").bind(topic).first<{ endpoint: string; p256dh: string; auth: string }>()
+      : null;
+    if (!sub) return sendNtfy(ntfyFetch, topic, msg);
+    const r = await sendWebPush(
+      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+      { title: msg.title, body: msg.body, url: msg.click ?? "/", tag: msg.tag },
+      vapid!,
+      pushFetch,
+    ).catch((e) => { console.error("webpush error", String(e)); return "error" as const; });
+    if (r === "gone") await db.prepare("DELETE FROM push_sub WHERE topic = ?").bind(topic).run();
+    return r === "ok";
+  };
+}
+
+export async function runAlerts(db: D1Database, fetchFn: FetchFn, now = new Date(), deliver: Deliver = (t, m) => sendNtfy(fetchFn, t, m)): Promise<AlertRunResult> {
   const result: AlertRunResult = { sent: 0, failed: 0, skippedQuiet: false };
   const today = kstDate(now);
   const nowIso = now.toISOString();
@@ -220,7 +252,7 @@ export async function runAlerts(db: D1Database, fetchFn: FetchFn, now = new Date
         .bind(sub.topic, item.id, kind, nowIso).run();
       if (!claim.meta.changes) continue;
       usedForSub++;
-      const ok = await sendNtfy(fetchFn, sub.topic, { ...messageFor(item, kind), click: item.url }).catch(() => false);
+      const ok = await deliver(sub.topic, { ...messageFor(item, kind), click: item.url, tag: `${item.id}-${kind}` }).catch(() => false);
       if (ok) result.sent++;
       else {
         result.failed++;

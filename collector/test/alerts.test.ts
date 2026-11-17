@@ -171,3 +171,36 @@ test("PC 발송기: 알림은 목록에 쌓이고, 가져가서 완료 표시하
   await call("/api/relay/ack", "POST", { sent: [out.items[0].id] });
   assert.equal(((await (await call("/api/relay/outbox")).json()) as { items: unknown[] }).items.length, 0);
 });
+
+test("웹푸시: 구독이 있는 기기는 웹푸시로, 410이면 구독 지우고, 없는 기기는 ntfy로", async () => {
+  const { makeDeliver } = await import("../src/alerts.ts");
+  const nodeCrypto = await import("node:crypto");
+  const { b64urlEncode } = await import("../src/webpush.ts");
+  const db = new D1Shim();
+  const { publicKey, privateKey } = nodeCrypto.generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const jwk = privateKey.export({ format: "jwk" });
+  const pubRaw = b64urlEncode(Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x!, "base64url"), Buffer.from(jwk.y!, "base64url")]));
+  void publicKey;
+  const ua = nodeCrypto.createECDH("prime256v1"); ua.generateKeys();
+  await asD1(db).prepare("INSERT INTO push_sub (topic, endpoint, p256dh, auth, created_at, updated_at) VALUES (?, ?, ?, ?, 'x', 'x')")
+    .bind("plabradar-pushpushpush", "https://web.push.apple.com/abc", b64urlEncode(ua.getPublicKey()), b64urlEncode(nodeCrypto.randomBytes(16))).run();
+  const hits: string[] = [];
+  let pushStatus = 201;
+  const pushFetch = async (url: string, init?: RequestInit) => {
+    hits.push(url);
+    assert.match(new Headers(init?.headers).get("authorization") ?? "", /^vapid t=.+, k=/);
+    assert.equal(new Headers(init?.headers).get("content-encoding"), "aes128gcm");
+    return new Response("", { status: pushStatus });
+  };
+  const ntfyHits: string[] = [];
+  const ntfyFetch = async (url: string) => { ntfyHits.push(url); return new Response("{}", { status: 200 }); };
+  const d = makeDeliver(asD1(db), ntfyFetch, { publicKey: pubRaw, privateJwk: JSON.stringify(jwk), subject: "https://x.dev" }, pushFetch);
+  const msg = { title: "t", body: "b", tags: "soccer" };
+  assert.equal(await d("plabradar-pushpushpush", msg), true);
+  assert.deepEqual(hits, ["https://web.push.apple.com/abc"]);
+  assert.equal(await d("plabradar-ntfyntfyntfy", msg), true);
+  assert.equal(ntfyHits.length, 1);
+  pushStatus = 410;
+  assert.equal(await d("plabradar-pushpushpush", msg), false);
+  assert.equal(await asD1(db).prepare("SELECT COUNT(*) AS n FROM push_sub").first("n"), 0);
+});
