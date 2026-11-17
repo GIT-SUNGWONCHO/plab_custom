@@ -133,19 +133,24 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .topic { display: flex; gap: 6px; align-items: center }
 .topic code { flex: 1; min-width: 0; overflow-wrap: anywhere; background: var(--muted); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--fg) }
 .btns { display: flex; flex-direction: column; gap: 8px }
-.btn { appearance: none; border: 0; border-radius: 12px; height: 46px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+.btn { flex: none; appearance: none; border: 0; border-radius: 12px; height: 46px; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
   background: var(--black); color: var(--on-black) }
 .btn.sub { background: var(--muted); color: var(--fg); font-weight: 600 }
 .btn.small { height: 36px; padding: 0 12px; font-size: 13px; flex: none }
 .btn.danger { background: transparent; color: var(--red); font-weight: 600 }
 .note { font-size: 13px; color: var(--fg-3); min-height: 18px }
 .lv { cursor: pointer }
-.hist-head { position: sticky; top: -18px; z-index: 2; background: var(--surface); margin-top: -18px; padding-top: 18px; padding-bottom: 6px;
+.hist-head { flex: none; padding-bottom: 4px;
   display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: start }
 .hist-head h2 { grid-column: 1 }
 .hist-head .sub { grid-column: 1 }
 .x-btn { grid-column: 2; grid-row: 1 / span 2; appearance: none; border: 0; background: var(--muted); color: var(--fg-2); width: 34px; height: 34px;
   border-radius: 50%; font-size: 16px; line-height: 34px; cursor: pointer }
+/* 추이 팝업: 위(제목·✕) 고정 / 가운데만 스크롤 / 아래(닫기) 고정 */
+.sheet.hist { overflow: hidden; gap: 10px }
+.hist-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; overscroll-behavior: contain }
+.hist-foot { flex: none; padding-top: 4px; border-top: 1px solid var(--border) }
+.hist-foot .btn { width: 100% }
 .hist-log summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 600; color: var(--fg-2); padding: 8px 0 }
 .hist-log summary::-webkit-details-marker { display: none }
 .hist-log summary::after { content: " ▾"; color: var(--fg-3) }
@@ -507,7 +512,7 @@ function whoHtml(p) {
 async function openHistory(id) {
   const bg = document.createElement("div");
   bg.className = "sheet-bg";
-  bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hist-title"><p class="note">불러오는 중…</p></div>`;
+  bg.innerHTML = `<div class="sheet hist" role="dialog" aria-modal="true" aria-labelledby="hist-title"><p class="note">불러오는 중…</p></div>`;
   document.body.append(bg);
   bg.addEventListener("click", (e) => { if (e.target === bg) bg.remove(); });
   let data;
@@ -525,6 +530,7 @@ async function openHistory(id) {
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기">✕</button>
       <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 지금 평균 ${esc(m.average_level && m.average_level !== "루키" ? short(m.average_level) : "–")} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명${range}</span></div>
+    <div class="hist-body">
     ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
     <div class="readout" id="readout" aria-live="polite"></div>
     <div class="chart"><h3>평균 레벨</h3><div id="c-lv"></div></div>
@@ -533,7 +539,8 @@ async function openHistory(id) {
       const prev = arr[i + 1];
       return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span>${whoHtml(p)}</li>`;
     }).join("")}</ul></details>` : ""}
-    <button class="btn sub" id="hist-close" type="button">닫기</button>`;
+    </div>
+    <div class="hist-foot"><button class="btn sub" id="hist-close" type="button">닫기</button></div>`;
   $("hist-close").onclick = () => bg.remove();
   $("hist-x").onclick = () => bg.remove();
   if (pts.length < 2) return;
