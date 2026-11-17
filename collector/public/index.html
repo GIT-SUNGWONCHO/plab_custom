@@ -185,26 +185,49 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .readout { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap }
 .readout b { color: var(--fg) }
 .chart { display: flex; flex-direction: column; gap: 4px }
-.dist { display: flex; flex-direction: column; gap: 6px }
-.dist h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3); display: flex; align-items: center; gap: 6px }
-.dist .tag { font-size: 10px; font-weight: 600; padding: 0 5px; border-radius: 4px; background: var(--muted); color: var(--fg-3) }
-.dist-mean { margin: 0; font-size: 13px; color: var(--fg-2); word-break: keep-all }
-.dist-mean b { color: var(--fg) }
-.gauge { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums }
+.blk { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border) }
+.blk:first-child { border-top: 0; padding-top: 2px }
+.bh { margin: 0; font-size: 15px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px }
+.bh .tag { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: var(--muted); color: var(--fg-3) }
+.blk .hint { margin: 0; font-size: 11.5px; color: var(--fg-3); word-break: keep-all }
+.okdot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--brand); vertical-align: 0 }
+.lvnow { display: flex; align-items: baseline; gap: 8px }
+.lvnow .big { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums }
+.lvnow .cap { font-size: 12px; color: var(--fg-3) }
+.gauge { display: grid; grid-template-columns: 14px 1fr 14px; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums }
+.gauge .ge { text-align: center }
 .gauge .gt { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; height: 10px }
 .gauge .gt i { background: var(--fg); border-radius: 2px }
-.gauge .gt b { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--brand); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--fg) }
-.stacks { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px }
-.stacks li { display: grid; grid-template-columns: 84px 1fr; gap: 8px; align-items: center; font-size: 12px }
-.stacks .gn { color: var(--fg-2); white-space: nowrap }
-.stacks .gn b { color: var(--fg); font-weight: 600 }
-.stack { display: flex; gap: 1px; height: 20px; border-radius: 5px; overflow: hidden }
-.stack i { display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; white-space: nowrap; font-style: normal; font-size: 10.5px; font-weight: 600;
-  background: var(--muted); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--border) }
-.stack i.ok { background: var(--brand); color: #171717; box-shadow: none }
-.stacks .rk { font-size: 11.5px; color: var(--fg-3) }
-.okdot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--brand); vertical-align: 0 }
-.dist .hint { margin: 0; font-size: 11.5px; color: var(--fg-3); word-break: keep-all }
+.gauge .gt b { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--brand); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--fg) }
+.gauge .gl { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center }
+.gauge .gl b { color: var(--fg); font-weight: 700 }
+/* 시안 A */
+.heat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
+.heat li, .rank li, .gsum li { display: grid; grid-template-columns: 76px 1fr; gap: 8px; align-items: center; font-size: 12px }
+.gn { color: var(--fg-2); white-space: nowrap }
+.gn b { color: var(--fg); font-weight: 600 }
+.muted { color: var(--fg-3); font-size: 11.5px }
+.cells { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px }
+.cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px }
+.cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--fg-3) }
+.cell.ok i { background: var(--brand) }
+.cell em { position: relative; height: 26px; line-height: 26px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums }
+.cell small { font-size: 10.5px; color: var(--fg-3) }
+/* 시안 B */
+.okline { margin: 0; font-size: 13px; color: var(--fg-2) }
+.okline b { color: var(--fg) }
+.people { display: flex; flex-wrap: wrap; gap: 5px; align-items: center }
+.pi { position: relative; width: 16px; height: 22px; border-radius: 8px 8px 4px 4px; background: var(--muted); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden }
+.pi i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--brand) }
+.pk { font-size: 11.5px; color: var(--fg-3); margin-left: 4px }
+.gsum { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: var(--fg-3) }
+/* 시안 C */
+.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.chips { display: flex; flex-wrap: wrap; gap: 4px }
+.chip { padding: 2px 7px; border-radius: 6px; background: var(--muted); color: var(--fg-2); font-size: 11.5px; font-variant-numeric: tabular-nums }
+.chip.ok { background: var(--brand-soft); color: var(--brand-text) }
+.chip.first { font-weight: 700 }
+.chip.first.ok { background: var(--brand); color: #171717 }
 .chart h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3) }
 .chart svg { display: block; width: 100%; touch-action: none; overflow: visible }
 .chart .grid { stroke: var(--border); stroke-width: 1 }
@@ -556,7 +579,7 @@ const fmtTs = (iso) => { const d = kst(iso); return `${d.getUTCMonth() + 1}/${d.
 
 function stepChart(el, pts, t0, t1, dom, ticks, h, xTicks) {
   // pts: [{t, v}] v=null이면 끊김. 계단 그래프(값은 다음 관측까지 유지)
-  const W = el.clientWidth || 320, L = 40, R = 10, T = 8, B = xTicks ? 18 : 6, H = h;
+  const W = el.clientWidth || 320, L = Math.max(40, 8 + Math.max(0, ...ticks.map(([, t]) => String(t).length)) * 11), R = 10, T = 8, B = xTicks ? 18 : 6, H = h;
   const x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R);
   const y = (v) => T + (1 - (v - dom[0]) / (dom[1] - dom[0])) * (H - T - B);
   let g = "";
@@ -662,40 +685,61 @@ function levelDist(d) {
   return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), expect };
 }
 const GRADE_KO_SHORT = { beginner: "비기너", amateur: "아마추어", semipro: "세미프로", pro: "프로" };
-function distHtml(d) {
-  if (!d) return "";
-  const r = levelDist(d);
-  if (!r) return "";
-  const dec = (x) => { const v = levelDecimal(x); return v.prefix + (v.value == null ? "" : (Math.floor(v.value * 10 + 1e-9) / 10).toFixed(1)); };
-  const L = short(LV[d.labelNum] || "");
-  // 레벨 안 위치 게이지: 구간을 3칸으로, 확률 높은 칸일수록 진하게 + 예상 평균 위치 점
+const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value == null ? "" : (Math.floor(v.value * 10 + 1e-9) / 10).toFixed(1)); };
+
+// ① 지금 레벨: 예상 평균(크게) + 레벨 안 위치 게이지 (가장 높은 칸에만 확률)
+function nowLevelHtml(d, r) {
+  if (!r) return `<p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
   const pos = Math.min(100, Math.max(0, ((r.mean - d.bandLo) / (d.bandHi - d.bandLo)) * 100));
   const top = r.third.indexOf(Math.max(...r.third));
-  const gauge = `<div class="gauge" role="img" aria-label="${esc(L)} 안에서 낮은 쪽 ${Math.round(r.third[0] * 100)}%, 가운데 ${Math.round(r.third[1] * 100)}%, 높은 쪽 ${Math.round(r.third[2] * 100)}%">
-      <span class="ge">${esc(L)}.0</span>
+  const num = (levelDecimal((d.bandLo + d.bandHi) / 2).value ?? 0) | 0;
+  return `<div class="lvnow"><span class="big">${esc(decText(r.mean))}</span><span class="cap">예상 평균</span></div>
+    <div class="gauge" role="img" aria-label="낮은 쪽 ${Math.round(r.third[0] * 100)}%, 가운데 ${Math.round(r.third[1] * 100)}%, 높은 쪽 ${Math.round(r.third[2] * 100)}%">
+      <span class="ge">${num || ""}</span>
       <span class="gt">${r.third.map((p) => `<i style="opacity:${(0.12 + 0.88 * p).toFixed(2)}"></i>`).join("")}<b style="left:${pos.toFixed(1)}%"></b></span>
-      <span class="ge">.9</span></div>`;
-  // 등급별 실제 인원 막대: 막대 하나 = 그 등급 사람 전체(100%), 안을 세부 레벨 확률로 나눔. 아마3 이하는 초록
-  const rows = [];
-  for (const [g, [a, b]] of Object.entries(GRADE_LV)) {
-    const k = d.counts[g] || 0; if (!k) continue;
-    const segs = [];
-    for (let l = a; l <= b; l++) {
-      const share = r.expect[l] / k; if (share < 0.005) continue;
-      const w = share * 100, name = short(LV[l]);
-      const txt = w >= 24 ? `${name} ${Math.round(w)}%` : w >= 11 ? name.replace(/[^\d]/g, "") || name : "";
-      segs.push(`<i class="${l <= 6 ? "ok" : ""}" style="width:${w.toFixed(1)}%" title="${esc(name)} ${Math.round(w)}%">${esc(txt)}</i>`);
-    }
-    rows.push(`<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${k}명</b></span><span class="stack">${segs.join("")}</span></li>`);
+      <span class="ge">${num ? num + 1 : ""}</span>
+      <span></span><span class="gl">${["낮음", "가운데", "높음"].map((n, i) => i === top ? `<b>${n} ${Math.round(r.third[i] * 100)}%</b>` : `<span>${n}</span>`).join("")}</span><span></span>
+    </div>`;
+}
+
+// ② 신청자 레벨 (시안 A/B/C)
+function peopleHtml(d, r) {
+  if (!r) return d && d.counts.rookie ? `<p class="note">루키 ${d.counts.rookie}명 (평균에서 빠져요)</p>` : "";
+  const view = window.DIST_VIEW || "A";
+  const grades = Object.entries(GRADE_LV).filter(([g]) => d.counts[g] > 0);
+  const share = (g, l) => r.expect[l] / d.counts[g];
+  const rookie = d.counts.rookie ? `<li class="rk"><span class="gn">루키 <b>${d.counts.rookie}명</b></span><span class="muted">평균에서 빠져요</span></li>` : "";
+  if (view === "A") {
+    // 시안 A: 등급마다 세부 레벨 칸(같은 너비), 칸 진하기 = 확률, 아마3 이하 칸은 라임
+    return `<ul class="heat">${grades.map(([g, [a, b]]) => {
+      const cells = []; for (let l = a; l <= b; l++) cells.push(l);
+      return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span class="cells">${cells.map((l) => {
+        const p = share(g, l);
+        return `<span class="cell${l <= 6 ? " ok" : ""}"><i style="opacity:${(0.08 + 0.92 * Math.min(1, p / 0.6)).toFixed(2)}"></i><em>${Math.round(p * 100)}%</em><small>${esc(short(LV[l]).replace(/^(비기너|아마|세미)/, ""))}</small></span>`;
+      }).join("")}</span></li>`;
+    }).join("")}${rookie}</ul>
+    <p class="hint">칸이 진할수록 그 레벨일 확률이 높아요. <span class="okdot"></span> 아마3 이하</p>`;
   }
-  if (d.counts.rookie) rows.push(`<li><span class="gn">루키 <b>${d.counts.rookie}명</b></span><span class="rk">평균에서 빠져요</span></li>`);
-  return `<section class="dist">
-    <h3>레벨 분포 <span class="tag">추정</span></h3>
-    <p class="dist-mean">예상 평균 <b>${esc(dec(r.mean))}</b> · ${["낮은 쪽", "가운데", "높은 쪽"][top]}일 확률 ${Math.round(r.third[top] * 100)}%</p>
-    ${gauge}
-    <ul class="stacks">${rows.join("")}</ul>
-    <p class="hint">등급별 인원은 실제 값, 막대 안은 각 사람이 그 레벨일 확률이에요. <span class="okdot"></span> 아마3 이하. 개인 레벨 관측 ${d.observations}건 기준이라 쌓일수록 정확해져요.</p>
-  </section>`;
+  if (view === "B") {
+    // 시안 B: 내 레벨 기준 — 사람 아이콘(실제 인원), 아마3 이하일 기대 인원만큼 라임
+    let ok = 0; for (let l = 1; l <= 6; l++) ok += r.expect[l];
+    const n = d.rated; const icons = [];
+    for (let i = 0; i < n; i++) icons.push(Math.max(0, Math.min(1, ok - i)));
+    return `<p class="okline">평가된 ${n}명 중 아마3 이하 <b>약 ${ok.toFixed(1)}명</b></p>
+      <div class="people">${icons.map((f) => `<span class="pi"><i style="height:${(f * 100).toFixed(0)}%"></i></span>`).join("")}${d.counts.rookie ? `<span class="pk">+ 루키 ${d.counts.rookie}</span>` : ""}</div>
+      <ul class="gsum">${grades.map(([g, [a, b]]) => {
+        let gok = 0; for (let l = a; l <= Math.min(b, 6); l++) gok += share(g, l);
+        let best = a; for (let l = a; l <= b; l++) if (share(g, l) > share(g, best)) best = l;
+        return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span>아마3 이하 ${Math.round(gok * 100)}% · 가장 유력 ${esc(short(LV[best]))}</span></li>`;
+      }).join("")}</ul>`;
+  }
+  // 시안 C: 등급마다 유력한 레벨 순위 (확률 순 칩 3개)
+  return `<ul class="rank">${grades.map(([g, [a, b]]) => {
+    const ls = []; for (let l = a; l <= b; l++) ls.push(l);
+    ls.sort((x, y) => share(g, y) - share(g, x));
+    return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span class="chips">${ls.slice(0, 3).map((l, i) => `<span class="chip${l <= 6 ? " ok" : ""}${i === 0 ? " first" : ""}">${esc(short(LV[l]))} ${Math.round(share(g, l) * 100)}%</span>`).join("")}</span></li>`;
+  }).join("")}${rookie}</ul>
+  <p class="hint">한 사람이 그 레벨일 확률이 높은 순이에요.</p>`;
 }
 
 async function openHistory(id) {
@@ -717,14 +761,18 @@ async function openHistory(id) {
   // 추정 평균을 '아마3.2~3.4'처럼 보여줌 (범위가 레벨 구간보다 좁을 때만)
   const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` (추정평균 ${levelRangeText(e.lo, e.hi)})` : "";
   const nowLv = m.average_level && m.average_level !== "루키" ? short(m.average_level) : null;
+  const dr = data.dist ? levelDist(data.dist) : null;
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명<br>평균 <b>${esc(nowLv || "–")}</b></span></div>
+      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명</span></div>
     <div class="hist-body">
-    ${distHtml(data.dist)}
+    <section class="blk"><h3 class="bh">지금 레벨 <span class="tag">추정</span></h3>${nowLevelHtml(data.dist, dr)}</section>
+    ${dr || (data.dist && data.dist.counts.rookie) ? `<section class="blk"><h3 class="bh">신청자 레벨 <span class="tag">추정</span></h3>${peopleHtml(data.dist, dr)}</section>` : ""}
+    <section class="blk"><h3 class="bh">변화 추이</h3>
     ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
     <div class="chart"><div class="chart-top"><h3>평균 레벨</h3><span class="readout" id="readout" aria-live="polite"></span></div><div id="c-lv"></div></div>
     <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
+    </section>
     ${pts.length ? `<details class="hist-log"><summary>상세 이력 ${pts.length}건</summary><ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 60).map((p, i, arr) => {
       const prev = arr[i + 1];
       return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${p.lv == null ? "–" : esc(short(p.label))}</span>${whoHtml(p)}</li>`;
