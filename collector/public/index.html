@@ -210,13 +210,15 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--fg-3) }
 .cell em { position: relative; height: 26px; line-height: 26px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums }
 .cell small { font-size: 10.5px; color: var(--fg-3) }
-.pchips { display: flex; flex-wrap: wrap; gap: 5px }
-.pc { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 28px; padding: 0 8px; border-radius: 8px; font-size: 12px; font-weight: 600; white-space: nowrap }
-.pc.g-b { background: var(--muted); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--border) }
-.pc.g-a { background: var(--fg-3); color: var(--surface) }
-.pc.g-s { background: var(--fg-2); color: var(--surface) }
-.pc.g-p { background: var(--fg); color: var(--surface) }
-.pc.g-r { background: transparent; color: var(--fg-3); box-shadow: inset 0 0 0 1px var(--border); font-weight: 500 }
+.hist-lv { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; height: 112px }
+.hist-lv li { display: grid; grid-template-rows: 16px 1fr 18px; align-items: end; justify-items: center; min-width: 0 }
+.hist-lv .hn { font-size: 12px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; align-self: end }
+.hist-lv .hb { width: 100%; max-width: 34px; border-radius: 5px 5px 2px 2px; align-self: end }
+.hist-lv .hl { font-size: 10.5px; color: var(--fg-3); white-space: nowrap; align-self: center }
+.hist-lv .g-b .hb { background: var(--fg-3); opacity: .45 }
+.hist-lv .g-a .hb { background: var(--fg-3) }
+.hist-lv .g-s .hb { background: var(--fg-2) }
+.hist-lv .g-p .hb { background: var(--fg) }
 .pdetail summary { cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600; color: var(--fg-2); padding: 2px 0 }
 .pdetail summary::-webkit-details-marker { display: none }
 .pdetail summary::after { content: " ▾"; color: var(--fg-3) }
@@ -770,9 +772,18 @@ function peopleHtml(d, r) {
   if (!r) return d && d.counts.rookie ? `<p class="note">루키 ${d.counts.rookie}명 (평균에서 빠져요)</p>` : "";
   const grades = Object.entries(GRADE_LV).filter(([g]) => d.counts[g] > 0);
   const bc = bestComposition(d, r);
-  const chips = [];
-  if (bc) bc.grades.forEach((G, gi) => G.lv.forEach((l, li) => { for (let j = 0; j < bc.counts[gi][li]; j++) chips.push(`<span class="pc ${GRADE_CLASS[G.g]}">${esc(short(LV[l]))}</span>`); }));
-  for (let j = 0; j < (d.counts.rookie || 0); j++) chips.push(`<span class="pc g-r">루키</span>`);
+  // 레벨별 인원 막대그래프: 가장 낮은~높은 레벨 사이를 빈칸 없이 이어서 (0명 칸도 자리 유지)
+  const per = Array(13).fill(0), gradeOf = [];
+  if (bc) bc.grades.forEach((G, gi) => G.lv.forEach((l, li) => { per[l] += bc.counts[gi][li]; gradeOf[l] = G.g; }));
+  const used = per.map((n, l) => (n ? l : 0)).filter(Boolean);
+  const lo = Math.min(...used), hi = Math.max(...used);
+  const maxN = Math.max(...per);
+  const cols = [];
+  for (let l = lo; l <= hi; l++) {
+    const g = gradeOf[l] || Object.entries(GRADE_LV).find(([, [a, b]]) => l >= a && l <= b)[0];
+    cols.push(`<li class="${GRADE_CLASS[g]}"><span class="hn">${per[l] || ""}</span><span class="hb" style="height:${per[l] ? Math.max(8, (per[l] / maxN) * 100) : 0}%"></span><span class="hl">${esc(hi - lo >= 8 ? short(LV[l]).replace(/^비기너/, "비") : short(LV[l]))}</span></li>`);
+  }
+  const chips = [`<ul class="hist-lv">${cols.join("")}</ul>`];
   const pct = bc ? Math.round(bc.prob * 100) : 0;
   const note = bc ? `가장 유력한 구성 · ${pct >= 1 ? pct + "%" : "1% 미만"}` : "";
   const share = (g, l) => r.expect[l] / d.counts[g];
@@ -783,8 +794,8 @@ function peopleHtml(d, r) {
       return `<span class="cell"><i style="opacity:${(0.08 + 0.92 * Math.min(1, p / 0.6)).toFixed(2)}"></i><em>${Math.round(p * 100)}%</em><small>${esc(short(LV[l]).replace(/^(비기너|아마|세미)/, ""))}</small></span>`;
     }).join("")}</span></li>`;
   }).join("");
-  return `<div class="pchips">${chips.join("")}</div>
-    <p class="hint">${note}${d.counts.rookie ? " · 루키는 평균 제외" : ""}</p>
+  return `${chips.join("")}
+    <p class="hint">${note}${d.counts.rookie ? ` · 루키 ${d.counts.rookie}명은 평균 제외` : ""}</p>
     <details class="pdetail"><summary>레벨별 확률 자세히</summary>
       <ul class="heat">${detail}</ul>
       <p class="hint">한 사람이 그 레벨일 확률</p>
