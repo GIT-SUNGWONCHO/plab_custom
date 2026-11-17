@@ -173,6 +173,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .hist-log summary::after { content: " ▾"; color: var(--fg-3) }
 .hist-log[open] summary::after { content: " ▴" }
 .hist-head .sub { font-size: 13px; color: var(--fg-3); word-break: keep-all }
+.hist-head .sub b { color: var(--fg); font-weight: 700 }
 .chart-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 18px }
 .readout { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap }
 .readout b { color: var(--fg) }
@@ -576,7 +577,7 @@ async function openHistory(id) {
   const nowLv = m.average_level && m.average_level !== "루키" ? short(m.average_level) : null;
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명<br>평균 ${esc(nowLv || "–")}${nowLv ? esc(range) : ""}</span></div>
+      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명<br>평균 <b>${esc(nowLv || "–")}</b>${nowLv ? esc(range) : ""}</span></div>
     <div class="hist-body">
     ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
     <div class="chart"><div class="chart-top"><h3>평균 레벨</h3><span class="readout" id="readout" aria-live="polite"></span></div><div id="c-lv"></div></div>
