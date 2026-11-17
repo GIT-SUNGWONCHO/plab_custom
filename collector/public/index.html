@@ -393,7 +393,7 @@ let last = null;
 // 칸 경계는 화면 표기(아마3.x의 x, 내림)에 맞춤: .0~.2 낮음 · .3~.6 가운데 · .7~.9 높음
 const thirdOfDigit = (x01) => { const dg = Math.min(9, Math.max(0, Math.floor(x01 * 10 + 1e-9))); return dg <= 2 ? 0 : dg <= 6 ? 1 : 2; };
 const meanThird = (mean, lo, hi) => thirdOfDigit((mean - lo) / (hi - lo));
-// 목록 아이콘(레벨 안 위치) = 팝업 게이지의 점이 있는 칸
+// 목록 아이콘(레벨 안 위치) = 팝업 게이지의 점(유력 평균)이 있는 칸
 function addProbTiers(data) {
   if (data._prob) return;
   data._prob = true;
@@ -404,7 +404,7 @@ function addProbTiers(data) {
     if (!it.dist || !data.prior) continue;
     const r = levelDist({ prior: data.prior, ...it.dist, bandLo: e.bandLo, bandHi: e.bandHi }, true);
     if (!r) continue;
-    const k = meanThird(r.mean, e.bandLo, e.bandHi);
+    const k = meanThird(r.mode, e.bandLo, e.bandHi);
     it.pbucket = e.labelNum * 3 + k;
     it.probTier = ["low", "mid", "high"][k];
   }
@@ -443,7 +443,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <h4>레벨 보는 법</h4>
   <p><b>초록 레벨</b> 평균이 아마3 이하인 매치.</p>
   <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이라, 화면에서는 이 범위를 아마3.0~3.9로 바꿔서 보여줘요. 아마3.5가 가운데라, 3.2면 낮은 3, 3.8이면 높은 3. 평가된 신청자가 없으면 –.</p>
-  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 예상 평균이 높은 쪽 / 가운데 / 낮은 쪽에 있다는 뜻 (추정). 매치를 누르면 자세히 나와요.</p>
+  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 유력 평균(가장 가능성 높은 평균값)이 높은 쪽 / 가운데 / 낮은 쪽에 있다는 뜻 (추정). 매치를 누르면 자세히 나와요.</p>
   <p><b>아이콘 없음</b> 평가된 신청자가 없어 평균이 없는 매치.</p>
   <p><b>매치 누르기</b> 레벨 상세(예상 평균, 신청자 레벨, 추이)가 열려요. 오른쪽 <b>신청가능</b> 버튼을 누르면 플랩 신청 화면으로 가요.</p>
   <p><b>추이 그래프</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
@@ -704,15 +704,17 @@ function levelDist(d, light = false) {
     return acc;
   };
   const total = sumOf(people);
-  let Z = 0, mean = 0; const third = [0, 0, 0];
+  let Z = 0, mean = 0, modeS = -1, modeP = 0; const third = [0, 0, 0];
   for (let s = d.sumLo; s <= d.sumHi && s < total.length; s++) {
     const p = total[s]; if (!p) continue;
     Z += p; mean += p * s;
+    if (p > modeP) { modeP = p; modeS = s; } // 가장 가능성 높은 점수 합 → 유력 평균
     const m = s / d.rated / 10;
     third[thirdOfDigit((m - d.bandLo) / (d.bandHi - d.bandLo))] += p;
   }
   if (!Z) return null;
-  if (light) return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), Z };
+  const mode = modeS / d.rated / 10;
+  if (light) return { mean: mean / Z / d.rated / 10, mode, third: third.map((t) => t / Z), Z };
   const expect = Array(13).fill(0);
   for (const g of Object.keys(GRADE_LV)) {
     const k = d.counts[g] || 0; if (!k) continue;
@@ -722,7 +724,7 @@ function levelDist(d, light = false) {
     const inRange = (lo, hi) => { lo = Math.max(0, lo); hi = Math.min(R.length - 1, hi); return hi < lo ? 0 : pre[hi + 1] - pre[lo]; };
     for (const [x, p] of person[g]) expect[lvOf(x)] += (k * p * inRange(d.sumLo - x, d.sumHi - x)) / Z;
   }
-  return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), expect, Z };
+  return { mean: mean / Z / d.rated / 10, mode, third: third.map((t) => t / Z), expect, Z };
 }
 const GRADE_KO_SHORT = { beginner: "비기너", amateur: "아마추어", semipro: "세미프로", pro: "프로" };
 const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value == null ? "" : (Math.floor(v.value * 10 + 1e-9) / 10).toFixed(1)); };
@@ -730,10 +732,11 @@ const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value =
 // ① 지금 레벨: 예상 평균(크게) + 레벨 안 위치 게이지 (가장 높은 칸에만 확률)
 function nowLevelHtml(d, r) {
   if (!r) return `<p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
-  const pos = Math.min(100, Math.max(0, ((r.mean - d.bandLo) / (d.bandHi - d.bandLo)) * 100));
-  const top = meanThird(r.mean, d.bandLo, d.bandHi);
+  // 기준은 '유력 평균'(가장 가능성 높은 평균값): 숫자·점·라임 칸·목록 아이콘·레벨 그래프 라임이 모두 이 값
+  const pos = Math.min(100, Math.max(0, ((r.mode - d.bandLo) / (d.bandHi - d.bandLo)) * 100));
+  const top = meanThird(r.mode, d.bandLo, d.bandHi);
   const num = (levelDecimal((d.bandLo + d.bandHi) / 2).value ?? 0) | 0;
-  return `<div class="lvnow"><span class="big">${esc(decText(r.mean))}</span><span class="cap">예상 평균</span></div>
+  return `<div class="lvnow"><span class="big">${esc(decText(r.mode))}</span><span class="cap">유력 평균</span></div>
     <div class="gauge" role="img" aria-label="낮은 쪽 ${Math.round(r.third[0] * 100)}%, 가운데 ${Math.round(r.third[1] * 100)}%, 높은 쪽 ${Math.round(r.third[2] * 100)}%">
       <span class="ge">${num || ""}</span>
       <span class="gt">${r.third.map((p, i) => i === top ? `<i class="top"></i>` : `<i style="opacity:${(0.1 + 0.5 * p).toFixed(2)}"></i>`).join("")}<b style="left:${pos.toFixed(1)}%"></b></span>
@@ -823,8 +826,8 @@ function peopleHtml(d, r) {
   const lo = Math.min(...used), hi = Math.max(...used);
   const rk = d.counts.rookie || 0;
   const maxN = Math.max(rk, ...per);
-  // 라임 = 예상 평균이 있는 레벨 (위 '지금 레벨'과 연결)
-  let avgL = 1; while (avgL < 12 && r.mean * 10 >= Math.round(SCORE_BANDS[avgL][1] * 10) + 0.5) avgL++;
+  // 라임 = 유력 평균이 있는 레벨 (위 '지금 레벨'과 연결)
+  let avgL = 1; while (avgL < 12 && r.mode * 10 >= Math.round(SCORE_BANDS[avgL][1] * 10) + 0.5) avgL++;
   const col = (cls, n, label) => `<li class="${cls}"><span class="hc">${n ? `<span class="hn">${n}</span><span class="hb" style="height:${Math.max(10, (n / maxN) * 100)}%"></span>` : cls.includes("avg") ? `<span class="hb stub"></span>` : ""}</span><span class="hl">${esc(label)}</span></li>`;
   const cols = [];
   if (rk) cols.push(col("g-r", rk, "루키"));
