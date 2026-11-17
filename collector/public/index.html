@@ -314,7 +314,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>시간순</b> 시작 시각 순.</p>
   <p><b>마감임박</b> 신청 15명 이상.</p>
   <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
-  <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이예요. 평가된 신청자가 없으면 –.</p>
+  <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이라, 화면에서는 이 범위를 아마2.5~3.5로 바꿔서 보여줘요 (가운데 2.55점 = 아마3.0). 평가된 신청자가 없으면 –.</p>
   <p><b>▲ ● ▼</b> 그 범위 안에서 추정한 평균 점수가 가운데(아마3이면 2.55)보다 위 / 거의 가운데 / 아래라는 뜻.
     사람이 들고 날 때 평균 표시가 바뀐 기록으로 계산해요.</p>
   <p><b>아이콘 없음</b> 아직 범위를 좁힐 단서가 없어서 어디쯤인지 알 수 없는 매치. 정렬할 땐 가운데로 쳐요.</p>
@@ -467,6 +467,24 @@ function stepChart(el, pts, t0, t1, dom, ticks, h, xTicks) {
   return { x, y, svg: el.firstElementChild, W, L, R };
 }
 
+// 플랩 점수 → '아마3.2' 같은 표기. 평균 레벨 구간(아마3 = 2.45~2.65점)의 가운데를 X.0, 양 끝을 X±0.5로
+const SCORE_BANDS = [null, [0.1, 1.0], [1.1, 1.4], [1.5, 2.0], [2.1, 2.2], [2.3, 2.4], [2.5, 2.6], [2.7, 2.8], [2.9, 3.0], [3.1, 3.3], [3.4, 3.6], [3.7, 4.0], [4.1, 5.0]];
+function levelDecimal(score) {
+  let L = 1;
+  while (L < 12 && score >= SCORE_BANDS[L][1] + 0.05) L++;
+  const [lo, hi] = SCORE_BANDS[L];
+  const x = (score - (lo + hi) / 2) / (hi - lo + 0.1); // -0.5 ~ +0.5
+  const name = short(LV[L]);
+  const prefix = name.replace(/\d+$/, ""), num = Number(name.slice(prefix.length) || 1);
+  return { prefix, value: num + x };
+}
+function levelRangeText(lo, hi) {
+  const a = levelDecimal(lo), b = levelDecimal(hi);
+  const f = (d) => d.value.toFixed(1);
+  if (f(a) === f(b) && a.prefix === b.prefix) return `${a.prefix}${f(a)}`;
+  return a.prefix === b.prefix ? `${a.prefix}${f(a)}~${f(b)}` : `${a.prefix}${f(a)}~${b.prefix}${f(b)}`;
+}
+
 // 들어오고 나간 사람: "+1 아마추어 (아마4~5로 추정)"
 const GRADE_KO = { rookie: "루키", beginner: "비기너", amateur: "아마추어", semipro: "세미프로", pro: "프로" };
 function rangeText(lo, hi) {
@@ -501,8 +519,8 @@ async function openHistory(id) {
   const t0 = pts.length ? pts[0].t : Date.now(), t1 = Math.max(t0 + 3600e3, Math.min(Date.now(), start));
   const e = data.estimate;
   // 아마추어 레벨일 때만 '아마 2.6~3.1'처럼 소수로 보여줌 (범위가 레벨 하나보다 좁을 때)
-  // 플랩 점수로 추정 평균 (아마3 = 2.5~2.6점). 범위가 레벨 구간보다 좁을 때만
-  const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` · 추정 평균 ${e.lo.toFixed(2)}~${e.hi.toFixed(2)}점` : "";
+  // 추정 평균을 '아마3.2~3.4'처럼 보여줌 (범위가 레벨 구간보다 좁을 때만)
+  const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` · 추정 평균 ${levelRangeText(e.lo, e.hi)}` : "";
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기">✕</button>
       <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 지금 평균 ${esc(m.average_level && m.average_level !== "루키" ? short(m.average_level) : "–")} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명${range}</span></div>
