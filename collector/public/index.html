@@ -210,6 +210,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px }
 .cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--brand) }
 .cell em { position: relative; height: 26px; line-height: 26px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums }
+.cell.hi em { color: #171717 }
 .cell small { font-size: 10.5px; color: var(--fg-3) }
 .hist-lv { list-style: none; margin: 0; padding: 0; display: flex; gap: 5px }
 .hist-lv li { flex: 1 1 0; max-width: 40px; min-width: 0; display: flex; flex-direction: column; gap: 4px }
@@ -830,7 +831,8 @@ function peopleHtml(d, r) {
     const cells = []; for (let l = a; l <= b; l++) cells.push(l);
     return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span class="cells">${cells.map((l) => {
       const p = share(g, l);
-      return `<span class="cell"><i style="opacity:${(0.08 + 0.92 * Math.min(1, p / 0.6)).toFixed(2)}"></i><em>${Math.round(p * 100)}%</em><small>${esc(short(LV[l]).replace(/^(비기너|아마|세미)/, ""))}</small></span>`;
+      const al = 0.08 + 0.5 * Math.min(1, p / 0.6); // 라임 진하기 최대 0.58 (쨍하지 않게)
+      return `<span class="cell${al > 0.4 ? " hi" : ""}"><i style="opacity:${al.toFixed(2)}"></i><em>${Math.round(p * 100)}%</em><small>${esc(short(LV[l]).replace(/^(비기너|아마|세미)/, ""))}</small></span>`;
     }).join("")}</span></li>`;
   }).join("");
   return `${chips.join("")}
