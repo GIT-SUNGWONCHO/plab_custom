@@ -143,6 +143,8 @@ ul.list { list-style: none; margin: 0; padding: 0 }
   padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   display: flex; flex-direction: column; gap: 14px }
 .sheet h2 { margin: 0; font-size: 18px }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.sheet-head .x-btn { flex: none }
 .sheet p, .sheet ol, .sheet .cond { word-break: keep-all }
 .sheet p { margin: 0; font-size: 14px; color: var(--fg-2) }
 .sheet .cond { background: var(--muted); border-radius: 12px; padding: 10px 12px; font-size: 14px }
@@ -480,7 +482,7 @@ function openSheet() {
   const bg = document.createElement("div");
   bg.className = "sheet-bg";
   bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-    <h2 id="sheet-title">알림 받기</h2>
+    <div class="sheet-head"><h2 id="sheet-title">알림 받기</h2><button class="x-btn" id="sheet-close" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <p>조건 안의 <b>평균 아마3 이하</b> 매치가 <b>신청 10명</b>을 넘거나 <b>마감임박(15명+)</b>이 되면 휴대폰으로 알려드려요. 밤 12시~아침 8시엔 쉬고 8시에 몰아서 보내요.</p>
     ${alertSub ? `<div class="cond">지금 받는 조건: ${condText(subCond(alertSub))}</div>` : ""}
     ${alertSub && same ? "" : `<div class="cond">${alertSub ? "바꿀 조건(지금 화면 필터)" : "알림 조건(지금 화면 필터)"}: ${condText(cur)}</div>`}
@@ -493,7 +495,6 @@ function openSheet() {
       ${alertSub ? `<button class="btn sub" id="alert-test" type="button">테스트 알림 보내기</button>
       <button class="btn danger" id="alert-off" type="button">알림 끄기</button>` : ""}
     </div>
-    <button class="btn sub" id="sheet-close" type="button">닫기</button>
     <p class="note" id="sheet-note" aria-live="polite"></p>
   </div>`;
   document.body.append(bg);
