@@ -52,12 +52,24 @@ export function pickEvents(items: BoardItem[], sub: AlertSub): { item: BoardItem
 
 const shortLevel = (l: string | undefined) => (l ?? "").replace("아마추어", "아마").replace("세미프로", "세미");
 
+const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
+/** 알림용 짧은 구장명: 반복되는 앞부분(플랩 스타디움, 서울) 제거 */
+export const shortStadium = (t: string) => t.replace(/^플랩\s*스타디움\s*/, "").replace(/^서울\s*/, "").trim();
+
+/**
+ * 휴대폰 알림 문구: 제목은 "무슨 일 · 언제 · 레벨", 본문은 "어디서" + "인원·형식"
+ *   12명 모임 · 11/22(일) 12:00 · 아마3
+ *   가산 벽산디지털밸리 6차 2구장
+ *   12/18명 · 6vs6 · AI리포트
+ */
 export function messageFor(it: BoardItem, kind: AlertKind): { title: string; body: string } {
   const lv = shortLevel(it.estimate?.label);
-  const title = kind === "soon" ? `마감임박 ${it.time} ${lv}` : `${it.time} ${lv} 매치 ${it.confirm}명 모임`;
-  const extra = [it.format?.replace(/\s/g, ""), it.aiReport ? "AI리포트" : ""].filter(Boolean).join(" · ");
-  const body = `${it.title}\n신청 ${it.confirm}/${it.max ?? "?"}명${extra ? " · " + extra : ""}`;
-  return { title, body };
+  const d = new Date(`${it.date}T00:00:00Z`);
+  const when = `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WEEKDAY[d.getUTCDay()]}) ${it.time}`;
+  const head = kind === "soon" ? "마감임박" : `${it.confirm}명 모임`;
+  const title = [head, when, lv].filter(Boolean).join(" · ");
+  const extra = [`${it.confirm}/${it.max ?? "?"}명`, it.format?.replace(/\s/g, ""), it.aiReport ? "AI리포트" : ""].filter(Boolean).join(" · ");
+  return { title, body: `${shortStadium(it.title)}\n${extra}` };
 }
 
 async function loadBoardRows(db: D1Database, date: string) {

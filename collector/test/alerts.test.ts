@@ -62,7 +62,8 @@ test("초록 + 10명 이상 → '모임' 알림 한 번, 초록 아님·10명 �
   const r = await runAlerts(asD1(db), ntfy, NOW);
   assert.equal(r.sent, 1);
   assert.equal(sent[0].topic, TOPIC);
-  assert.match(sent[0].title, /12:00 아마3 매치 12명 모임/);
+  assert.equal(sent[0].title, "12명 모임 · 11/22(일) 12:00 · 아마3");
+  assert.equal(sent[0].body, "구장 1\n12/18명 · 6vs6");
   assert.equal(sent[0].click, "https://www.plabfootball.com/match/1/");
   // 다시 돌려도 같은 알림은 안 감
   await runAlerts(asD1(db), ntfy, new Date(NOW.getTime() + 60_000));
@@ -171,5 +172,5 @@ test("알림을 켤 때 이미 대상인 매치는 안 보내고, 이후 새로 
   db.db.prepare("UPDATE match SET confirm = 15 WHERE id = 1").run(); // 이미 보낸 것으로 친 매치가 마감임박으로 → 다음 단계는 감
   db.db.prepare("UPDATE snapshot SET confirm = 15 WHERE match_id = 1").run();
   await runAlerts(asD1(db), ntfy, new Date(NOW.getTime() + 60_000));
-  assert.deepEqual(sent.map((m) => m.title).sort(), ["13:00 아마2 매치 11명 모임", "마감임박 12:00 아마3"].sort());
+  assert.deepEqual(sent.map((m) => m.title).sort(), ["11명 모임 · 11/22(일) 13:00 · 아마2", "마감임박 · 11/22(일) 12:00 · 아마3"].sort());
 });
