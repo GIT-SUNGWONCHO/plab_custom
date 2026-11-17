@@ -76,7 +76,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .help summary::-webkit-details-marker { display: none }
 .help summary::after { content: " ▾"; color: var(--fg-3) }
 .help[open] summary::after { content: " ▴" }
-.help-body { padding: 0 12px 10px; font-size: 13px; color: var(--fg-2) }
+.help-body { padding: 0 12px 10px; font-size: 13px; color: var(--fg-2); word-break: keep-all }
 .help-body p { margin: 0 0 8px }
 .help-body b { color: var(--fg) }
 .section { font-size: 13px; font-weight: 700; color: var(--fg-3); padding-block: 18px 6px }
@@ -114,7 +114,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .row.full .title, .row.full .time { color: var(--fg-3) }
 
 .retry { appearance: none; margin-top: 12px; height: 36px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer }
-.empty { padding: 40px 0; text-align: center; color: var(--fg-3) }
+.empty { padding: 40px 0; text-align: center; color: var(--fg-3); word-break: keep-all }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
 .icon-btn { position: relative }
 .icon-btn.on { background: var(--blue-soft); color: var(--blue) }
@@ -155,7 +155,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .hist-log summary::-webkit-details-marker { display: none }
 .hist-log summary::after { content: " ▾"; color: var(--fg-3) }
 .hist-log[open] summary::after { content: " ▴" }
-.hist-head .sub { font-size: 13px; color: var(--fg-3) }
+.hist-head .sub { font-size: 13px; color: var(--fg-3); word-break: keep-all }
 .readout { font-size: 13px; color: var(--fg-2); font-variant-numeric: tabular-nums; min-height: 18px }
 .readout b { color: var(--fg) }
 .chart { display: flex; flex-direction: column; gap: 4px }
@@ -537,7 +537,7 @@ async function openHistory(id) {
     <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
     ${pts.length ? `<details class="hist-log"><summary>상세 이력 ${pts.length}건</summary><ul class="log" aria-label="변화 기록">${[...pts].reverse().slice(0, 60).map((p, i, arr) => {
       const prev = arr[i + 1];
-      return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${esc(short(p.label) || "–")}</span>${whoHtml(p)}</li>`;
+      return `<li><span>${fmtTsShort(p.ts)}</span><span class="${prev && prev.n !== p.n ? "chg" : ""}">${p.n}명</span><span class="${prev && prev.label !== p.label ? "chg" : ""}">${p.lv == null ? "–" : esc(short(p.label))}</span>${whoHtml(p)}</li>`;
     }).join("")}</ul></details>` : ""}
     </div>
     <div class="hist-foot"><button class="btn sub" id="hist-close" type="button">닫기</button></div>`;
@@ -560,12 +560,13 @@ async function openHistory(id) {
 
   const show = (i) => {
     const p = pts[i];
-    $("readout").innerHTML = `${fmtTs(p.ts)} · 신청 <b>${p.n}명</b> · 평균 <b>${esc(short(p.label) || "–")}</b>`;
+    $("readout").innerHTML = `${fmtTs(p.ts)} · 신청 <b>${p.n}명</b> · 평균 <b>${p.lv == null ? "–" : esc(short(p.label))}</b>`;
     for (const [C, v] of [[A, p.lv], [B, p.n]]) {
       const cx = C.x(p.t);
       const cross = C.svg.querySelector(".cross"), dot = C.svg.querySelector(".dot");
       cross.setAttribute("x1", cx); cross.setAttribute("x2", cx);
-      if (v == null) { dot.setAttribute("cy", -10); continue; }
+      dot.style.visibility = v == null ? "hidden" : "visible"; // 평균 없는 시점은 점 숨김
+      if (v == null) continue;
       dot.setAttribute("cx", cx); dot.setAttribute("cy", C.y(v));
     }
   };
