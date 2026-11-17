@@ -196,8 +196,9 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .gauge { display: grid; grid-template-columns: 14px 1fr 14px; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums }
 .gauge .ge { text-align: center }
 .gauge .gt { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; height: 10px }
-.gauge .gt i { background: var(--fg); border-radius: 2px }
-.gauge .gt b { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--brand); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--fg) }
+.gauge .gt i { background: var(--fg-3); border-radius: 2px }
+.gauge .gt i.top { background: var(--brand); opacity: 1 }
+.gauge .gt b { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--fg); border: 2px solid var(--surface) }
 .gauge .gl { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center }
 .gauge .gl b { color: var(--fg); font-weight: 700 }
 .heat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
@@ -210,15 +211,19 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--fg-3) }
 .cell em { position: relative; height: 26px; line-height: 26px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums }
 .cell small { font-size: 10.5px; color: var(--fg-3) }
-.hist-lv { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; height: 112px }
-.hist-lv li { display: grid; grid-template-rows: 16px 1fr 18px; align-items: end; justify-items: center; min-width: 0 }
-.hist-lv .hn { font-size: 12px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; align-self: end }
-.hist-lv .hb { width: 100%; max-width: 34px; border-radius: 5px 5px 2px 2px; align-self: end }
-.hist-lv .hl { font-size: 10.5px; color: var(--fg-3); white-space: nowrap; align-self: center }
+.hist-lv { list-style: none; margin: 0; padding: 0; display: flex; gap: 5px }
+.hist-lv li { flex: 1 1 0; max-width: 40px; min-width: 0; display: flex; flex-direction: column; gap: 4px }
+.hist-lv .hc { height: 96px; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; gap: 3px }
+.hist-lv .hn { text-align: center; font-size: 12px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; line-height: 1 }
+.hist-lv .hb { border-radius: 5px 5px 2px 2px; min-height: 6px }
+.hist-lv .hl { text-align: center; font-size: 10.5px; color: var(--fg-3); white-space: nowrap; letter-spacing: -0.04em }
+.hist-lv .g-r .hb { background: transparent; box-shadow: inset 0 0 0 1.5px var(--border) }
+.hist-lv .g-r .hn { color: var(--fg-3) }
 .hist-lv .g-b .hb { background: var(--fg-3); opacity: .45 }
 .hist-lv .g-a .hb { background: var(--fg-3) }
 .hist-lv .g-s .hb { background: var(--fg-2) }
 .hist-lv .g-p .hb { background: var(--fg) }
+.hist-lv .top .hb { background: var(--brand); opacity: 1 }
 .pdetail summary { cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600; color: var(--fg-2); padding: 2px 0 }
 .pdetail summary::-webkit-details-marker { display: none }
 .pdetail summary::after { content: " ▾"; color: var(--fg-3) }
@@ -692,7 +697,7 @@ function nowLevelHtml(d, r) {
   return `<div class="lvnow"><span class="big">${esc(decText(r.mean))}</span><span class="cap">예상 평균</span></div>
     <div class="gauge" role="img" aria-label="낮은 쪽 ${Math.round(r.third[0] * 100)}%, 가운데 ${Math.round(r.third[1] * 100)}%, 높은 쪽 ${Math.round(r.third[2] * 100)}%">
       <span class="ge">${num || ""}</span>
-      <span class="gt">${r.third.map((p) => `<i style="opacity:${(0.12 + 0.88 * p).toFixed(2)}"></i>`).join("")}<b style="left:${pos.toFixed(1)}%"></b></span>
+      <span class="gt">${r.third.map((p, i) => i === top ? `<i class="top"></i>` : `<i style="opacity:${(0.1 + 0.5 * p).toFixed(2)}"></i>`).join("")}<b style="left:${pos.toFixed(1)}%"></b></span>
       <span class="ge">${num ? num + 1 : ""}</span>
       <span></span><span class="gl">${["낮음", "가운데", "높음"].map((n, i) => i === top ? `<b>${n} ${Math.round(r.third[i] * 100)}%</b>` : `<span>${n}</span>`).join("")}</span><span></span>
     </div>`;
@@ -777,11 +782,16 @@ function peopleHtml(d, r) {
   if (bc) bc.grades.forEach((G, gi) => G.lv.forEach((l, li) => { per[l] += bc.counts[gi][li]; gradeOf[l] = G.g; }));
   const used = per.map((n, l) => (n ? l : 0)).filter(Boolean);
   const lo = Math.min(...used), hi = Math.max(...used);
-  const maxN = Math.max(...per);
+  const rk = d.counts.rookie || 0;
+  const maxN = Math.max(rk, ...per);
+  const topN = Math.max(...per);
+  const lime = topN >= 2 && per.filter((n) => n === topN).length === 1; // 가장 많은 레벨이 하나일 때만 강조
+  const col = (cls, n, label) => `<li class="${cls}"><span class="hc">${n ? `<span class="hn">${n}</span><span class="hb" style="height:${Math.max(10, (n / maxN) * 100)}%"></span>` : ""}</span><span class="hl">${esc(label)}</span></li>`;
   const cols = [];
+  if (rk) cols.push(col("g-r", rk, "루키"));
   for (let l = lo; l <= hi; l++) {
     const g = gradeOf[l] || Object.entries(GRADE_LV).find(([, [a, b]]) => l >= a && l <= b)[0];
-    cols.push(`<li class="${GRADE_CLASS[g]}"><span class="hn">${per[l] || ""}</span><span class="hb" style="height:${per[l] ? Math.max(8, (per[l] / maxN) * 100) : 0}%"></span><span class="hl">${esc(hi - lo >= 8 ? short(LV[l]).replace(/^비기너/, "비") : short(LV[l]))}</span></li>`);
+    cols.push(col(`${GRADE_CLASS[g]}${lime && per[l] === topN ? " top" : ""}`, per[l], hi - lo >= 8 ? short(LV[l]).replace(/^비기너/, "비") : short(LV[l])));
   }
   const chips = [`<ul class="hist-lv">${cols.join("")}</ul>`];
   const pct = bc ? Math.round(bc.prob * 100) : 0;
@@ -795,7 +805,7 @@ function peopleHtml(d, r) {
     }).join("")}</span></li>`;
   }).join("");
   return `${chips.join("")}
-    <p class="hint">${note}${d.counts.rookie ? ` · 루키 ${d.counts.rookie}명은 평균 제외` : ""}</p>
+    <p class="hint">${note}${d.counts.rookie ? " · 루키는 평균 제외" : ""}</p>
     <details class="pdetail"><summary>레벨별 확률 자세히</summary>
       <ul class="heat">${detail}</ul>
       <p class="hint">한 사람이 그 레벨일 확률</p>
