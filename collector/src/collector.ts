@@ -116,22 +116,37 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
   // ---------- 1-2. 집중 감시: 목록(매분)으로 인원이 바뀐 매치를 찾아 바로 폴링 ----------
   const forced = new Set<number>();
   const hotRaw = await db.prepare("SELECT value FROM state WHERE key = 'hot_windows'").first<string>("value");
-  const hot: HotWindow[] = hotRaw ? JSON.parse(hotRaw) : [];
+  let hot: HotWindow[] = [];
+  try {
+    const parsed = hotRaw ? JSON.parse(hotRaw) : [];
+    if (Array.isArray(parsed)) {
+      hot = parsed.filter((w) => w && typeof w.date === "string" && typeof w.from === "string" && typeof w.to === "string");
+    }
+  } catch {
+    result.errors.push("hot_windows 형식 오류");
+  }
   const today = kstDate(now);
+  const nowKst = kstTime(now);
   const groups = [...new Set(rules.flatMap((r) => r.stadiumGroupIds))];
   if (groups.length) {
     const byId = new Map(tracked.map((m) => [m.id, m]));
-    for (const w of hot.filter((w) => w.date >= today)) {
-      if (budgetLeft() < 6) break;
+    // 지난 창은 건너뛰고, 같은 날짜는 목록을 한 번만 부름
+    const active = hot.filter((w) => w.date > today || (w.date === today && w.to >= nowKst));
+    for (const date of [...new Set(active.map((w) => w.date))]) {
+      if (budgetLeft() < 10) break; // 폴링 몫을 넉넉히 남김
+      const wins = active.filter((w) => w.date === date);
       try {
-        const listed = await client.listMatches(w.date, groups);
+        const listed = await client.listMatches(date, groups);
         for (const l of listed) {
-          if (!inTimeWindow(l.kstTime, w.from, w.to)) continue;
+          if (!wins.some((w) => inTimeWindow(l.kstTime, w.from, w.to))) continue;
           const m = byId.get(l.id);
-          if (m && l.confirm != null && l.confirm !== m.confirm) forced.add(m.id);
+          if (!m || l.confirm == null || l.confirm === m.confirm) continue;
+          // 직전 폴링이 실패했으면 2분은 쉬고 다시 (실패 반복으로 예산을 다 쓰지 않게)
+          if (m.poll_errors > 0 && m.last_polled_at && now.getTime() - Date.parse(m.last_polled_at) < 2 * 60_000) continue;
+          forced.add(m.id);
         }
       } catch (e) {
-        result.errors.push(`hot ${w.date}: ${String(e)}`);
+        result.errors.push(`hot ${date}: ${String(e)}`);
       }
     }
   }

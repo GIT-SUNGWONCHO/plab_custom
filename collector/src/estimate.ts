@@ -65,16 +65,30 @@ type Counts = Record<(typeof RATED)[number], number>;
 
 const intRange = (lo: number, hi: number): [number, number] => [Math.ceil(lo - EPS), Math.floor(hi + EPS)];
 
-function counts(s: SnapLevel): Counts | null {
+/**
+ * 루키 포함 등급별 인원. 비율이 없거나, 인원과 비율이 서로 맞지 않으면 null.
+ * (상세와 레벨그래프를 받는 사이에 사람이 들고 나면 비율이 다른 인원 기준이라 합이 안 맞음.
+ *  비율은 정수 %라 인원이 맞으면 round(pct×n/100)의 합은 항상 n)
+ */
+function allCounts(s: SnapLevel): Record<Grade, number> | null {
   const n = s.confirm ?? 0;
   if (n <= 0) return null;
-  const c = {} as Counts;
-  for (const g of RATED) {
+  const c = {} as Record<Grade, number>;
+  let total = 0;
+  for (const g of ["rookie", ...RATED] as Grade[]) {
     const pct = s[`pct_${g}`];
     if (pct == null) return null;
     c[g] = Math.round((pct * n) / 100);
+    total += c[g];
   }
-  return c;
+  return total === n ? c : null;
+}
+
+function counts(s: SnapLevel): Counts | null {
+  const a = allCounts(s);
+  if (!a) return null;
+  const { rookie: _r, ...rated } = a;
+  return rated as Counts;
 }
 
 export type GradeName = Grade;
@@ -102,13 +116,12 @@ export function traceLevels(snaps: SnapLevel[]): TraceStep[] {
 
   for (const s of snaps) {
     const n = s.confirm ?? 0;
-    // 루키 포함 전체 등급 인원 (변화 표시용)
-    const all = {} as Record<Grade, number>;
-    for (const g of ALL) all[g] = Math.round(((s[`pct_${g}`] ?? 0) * n) / 100);
-    const changes = prevAll
+    // 루키 포함 전체 등급 인원 (변화 표시용). 0명이면 모두 0, 비율이 없거나 안 맞으면 변화 표시 안 함
+    const all = n === 0 ? (Object.fromEntries(ALL.map((g) => [g, 0])) as Record<Grade, number>) : allCounts(s);
+    const changes = prevAll && all
       ? ALL.map((g) => ({ grade: g, delta: all[g] - prevAll![g] })).filter((x) => x.delta !== 0)
       : [];
-    prevAll = all;
+    if (all) prevAll = all;
 
     const L = s.average_level === "루키" ? null : levelToNum(s.average_level);
     const c = counts(s);

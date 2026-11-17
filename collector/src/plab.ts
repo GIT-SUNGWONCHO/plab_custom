@@ -185,6 +185,7 @@ export class PlabClient {
     this.requests++;
     const res = await this.fetchFn(PLAB_BASE + path, {
       headers: { Accept: "application/json", "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(15_000),
     });
     if (res.status === 404) throw new PlabNotFoundError(path);
     if (!res.ok) throw new Error(`plab ${res.status} ${path}`);

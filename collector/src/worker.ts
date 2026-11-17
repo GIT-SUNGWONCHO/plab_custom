@@ -12,8 +12,12 @@ export default {
     const now = new Date(controller.scheduledTime);
     ctx.waitUntil(
       (async () => {
-        const r = await runCollector(env.DB, new PlabClient(), now);
-        if (r.errors.length) console.error("collector errors", r.errors);
+        try {
+          const r = await runCollector(env.DB, new PlabClient(), now);
+          if (r.errors.length) console.error("collector errors", r.errors);
+        } catch (e) {
+          console.error("collector failed", e);
+        }
         // 수집 직후 알림 판단 (수집 실패와 상관없이 실행)
         const a = await runAlerts(env.DB, ntfyFetchWith(env.NTFY_TOKEN), now).catch((e) => {
           console.error("alerts error", e);

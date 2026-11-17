@@ -2,7 +2,7 @@
 //  - scheduled: 매분 크론 → 수집기 실행
 //  - fetch: 보드 API(공개) + 관리 API (ADMIN_TOKEN 필요)
 
-import { ntfyFetchWith, sendNtfy, TOPIC_RE } from "./alerts.ts";
+import { MAX_SENDS_PER_DAY, MAX_SUBSCRIPTIONS, MAX_TESTS_PER_DAY, ntfyFetchWith, sendNtfy, sentTodayCount, TOPIC_RE } from "./alerts.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
 import { levelBucket, traceLevels, type SnapLevel } from "./estimate.ts";
@@ -129,6 +129,12 @@ export async function handleFetch(
         return json({ error: "from/to: 'HH:MM'" }, 400);
       }
       const nowIso = new Date().toISOString();
+      // 구독 수 상한 (새 토픽만)
+      const exists = await env.DB.prepare("SELECT 1 AS x FROM alert_sub WHERE topic = ?").bind(b.topic).first();
+      if (!exists) {
+        const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM alert_sub").first<number>("n");
+        if ((n ?? 0) >= MAX_SUBSCRIPTIONS) return json({ error: "알림 구독이 너무 많아요. 나중에 다시 시도해 주세요." }, 429);
+      }
       await env.DB.prepare(
         `INSERT INTO alert_sub (topic, date, time_from, time_to, only6, only_ai, only_tf, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -149,10 +155,21 @@ export async function handleFetch(
     const key = `alert_test:${topic}`;
     const last = await env.DB.prepare("SELECT value FROM state WHERE key = ?").bind(key).first<string>("value");
     if (last && Date.now() - Date.parse(last) < 60_000) return json({ error: "1분 뒤에 다시 시도해 주세요" }, 429);
+    // 테스트도 ntfy 하루 한도를 쓰므로 하루 상한 안에서, 테스트끼리는 하루 30건까지
+    const now = new Date();
+    const dayStart = now.toISOString().slice(0, 10) + "T00:00:00.000Z";
+    const tests = await env.DB.prepare("SELECT COUNT(*) AS n FROM alert_log WHERE kind = 'test' AND ts >= ?").bind(dayStart).first<number>("n");
+    if ((tests ?? 0) >= MAX_TESTS_PER_DAY || (await sentTodayCount(env.DB, now)) >= MAX_SENDS_PER_DAY) {
+      return json({ error: "오늘은 테스트 알림을 더 보낼 수 없어요. 내일 다시 시도해 주세요." }, 429);
+    }
     await env.DB.prepare("INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
       .bind(key, new Date().toISOString()).run();
     const ok = await sendNtfy(ntfyFetch, topic, { title: "플랩레이더 테스트 알림", body: "알림이 잘 와요. 조건에 맞는 매치가 생기면 알려드릴게요.", tags: "white_check_mark" })
       .catch(() => false);
+    if (ok) {
+      await env.DB.prepare("INSERT OR IGNORE INTO alert_log (topic, match_id, kind, ts) VALUES (?, ?, 'test', ?)")
+        .bind(topic, -Math.floor(now.getTime() / 1000), now.toISOString()).run();
+    }
     return json({ ok }, ok ? 200 : 502);
   }
 

@@ -547,21 +547,24 @@ async function openHistory(id) {
 
   // 평균 레벨: 데이터 범위 ±1 정수 레벨
   const lvs = pts.map((p) => p.lv).filter((v) => v != null);
-  const lo = Math.max(1, Math.min(...lvs) - 1), hi = Math.min(12, Math.max(...lvs) + 1);
+  const hasLv = lvs.length > 0; // 평균이 한 번도 없었으면(루키만/0명) 레벨 그래프 대신 안내
+  const lo = hasLv ? Math.max(1, Math.min(...lvs) - 1) : 5, hi = hasLv ? Math.min(12, Math.max(...lvs) + 1) : 7;
   const lvTicks = []; for (let v = lo; v <= hi; v++) lvTicks.push([v, esc(short(LV[v]))]);
-  const maxN = Math.max(m.max_players || 0, ...pts.map((p) => p.n));
+  const maxN = Math.max(1, m.max_players || 0, ...pts.map((p) => p.n));
   const nTicks = [[0, "0"], [10, "10"], [maxN, String(maxN)]].filter((t, i, a) => t[0] <= maxN && a.findIndex((u) => u[0] === t[0]) === i);
   // x 눈금: 날짜(KST 자정) 최대 4개
   const xt = []; const day = 86400e3; let d0 = Math.ceil((t0 + 9 * 3600e3) / day) * day - 9 * 3600e3;
   const step = Math.max(1, Math.ceil((t1 - d0) / day / 4));
   for (let t = d0; t <= t1; t += step * day) { const d = kst(new Date(t).toISOString()); xt.push([t, `${d.getUTCMonth() + 1}/${d.getUTCDate()}`]); }
-  const A = stepChart($("c-lv"), pts.map((p) => ({ t: p.t, v: p.lv })), t0, t1, [lo, hi], lvTicks, 130, null);
+  if (!hasLv) $("c-lv").parentElement.innerHTML = `<h3>평균 레벨</h3><p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
+  const A = !hasLv ? null : stepChart($("c-lv"), pts.map((p) => ({ t: p.t, v: p.lv })), t0, t1, [lo, hi], lvTicks, 130, null);
   const B = stepChart($("c-n"), pts.map((p) => ({ t: p.t, v: p.n })), t0, t1, [0, maxN], nTicks, 110, xt);
 
   const show = (i) => {
     const p = pts[i];
     $("readout").innerHTML = `${fmtTs(p.ts)} · 신청 <b>${p.n}명</b> · 평균 <b>${p.lv == null ? "–" : esc(short(p.label))}</b>`;
     for (const [C, v] of [[A, p.lv], [B, p.n]]) {
+      if (!C) continue;
       const cx = C.x(p.t);
       const cross = C.svg.querySelector(".cross"), dot = C.svg.querySelector(".dot");
       cross.setAttribute("x1", cx); cross.setAttribute("x2", cx);
@@ -576,7 +579,7 @@ async function openHistory(id) {
     let i = 0; while (i + 1 < pts.length && pts[i + 1].t <= t) i++;
     show(i);
   };
-  for (const C of [A, B]) {
+  for (const C of [A, B].filter(Boolean)) {
     C.svg.addEventListener("pointerdown", (ev) => pick(ev, C));
     C.svg.addEventListener("pointermove", (ev) => { if (ev.pointerType === "mouse" || ev.buttons) pick(ev, C); });
   }

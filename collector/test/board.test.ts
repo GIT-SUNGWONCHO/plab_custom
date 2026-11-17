@@ -191,3 +191,22 @@ test("한 명이 들어와 평균이 3→4로 오르면 그 사람은 아마4~5"
   const t3 = traceLevels([snap("아마추어3", { a: 10 }), snap("아마추어3", { a: 10, r: 1 })]);
   assert.deepEqual(t3[1].changes, [{ grade: "rookie", delta: 1 }]);
 });
+
+test("인원과 비율이 안 맞는 스냅샷(사이에 사람이 들어옴)은 추정에 안 씀", async () => {
+  const { traceLevels } = await import("../src/estimate.ts");
+  // 2명인데 비율은 3명 기준(루키·비기너·아마추어 1명씩 → 33/33/33) → 합 3 ≠ 2 → 버림
+  const bad = { confirm: 2, average_level: "비기너3", pct_rookie: 33, pct_beginner: 33, pct_amateur: 33, pct_semipro: 0, pct_pro: 0 };
+  const t = traceLevels([snap("아마추어3", { a: 1, b: 1 }), bad, snap("비기너3", { r: 1, b: 1, a: 1 })]);
+  assert.equal(t[1].estimate, null);
+  assert.deepEqual(t[1].changes, []);
+  // 그다음 정상 스냅샷의 변화는 마지막 정상 스냅샷 기준 (+1 루키)
+  assert.deepEqual(t[2].changes, [{ grade: "rookie", delta: 1 }]);
+});
+
+test("비율이 없는 스냅샷은 가짜 증감을 만들지 않음", async () => {
+  const { traceLevels } = await import("../src/estimate.ts");
+  const nul = { confirm: 10, average_level: "아마추어3", pct_rookie: null, pct_beginner: null, pct_amateur: null, pct_semipro: null, pct_pro: null };
+  const t = traceLevels([snap("아마추어3", { a: 10 }), nul, snap("아마추어3", { a: 10 })]);
+  assert.deepEqual(t[1].changes, []);
+  assert.deepEqual(t[2].changes, []);
+});
