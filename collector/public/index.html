@@ -422,7 +422,7 @@ function addProbTiers(data) {
     let pt = POINT_MEMO.get(key);
     if (pt === undefined) {
       const r = levelDist(d, true);
-      pt = r ? levelPoint(d, r, bestComposition(d, r)) : null;
+      pt = r ? r.mode : null; // 목록 아이콘 = 유력 평균 (팝업 숫자와 같음)
       POINT_MEMO.set(key, pt);
     }
     if (pt == null) continue;
@@ -753,7 +753,9 @@ function levelDist(d, light = false) {
   for (let s = d.sumLo; s <= d.sumHi && s < total.length; s++) if (total[s] >= modeP * (1 - 1e-9)) { tieSum += s; tieN++; }
   modeS = tieSum / tieN;
   const mode = modeS / d.rated / 10;
-  if (light) return { mean: mean / Z / d.rated / 10, mode, third: third.map((t) => t / Z), Z };
+  let modeLo = Infinity, modeHi = -Infinity;
+  for (let s = d.sumLo; s <= d.sumHi && s < total.length; s++) if (total[s] >= modeP * (1 - 1e-9)) { modeLo = Math.min(modeLo, s); modeHi = Math.max(modeHi, s); }
+  if (light) return { mean: mean / Z / d.rated / 10, mode, modeLo, modeHi, third: third.map((t) => t / Z), Z };
   const expect = Array(13).fill(0);
   for (const g of Object.keys(GRADE_LV)) {
     const k = d.counts[g] || 0; if (!k) continue;
@@ -763,7 +765,7 @@ function levelDist(d, light = false) {
     const inRange = (lo, hi) => { lo = Math.max(0, lo); hi = Math.min(R.length - 1, hi); return hi < lo ? 0 : pre[hi + 1] - pre[lo]; };
     for (const [x, p] of person[g]) expect[lvOf(x)] += (k * p * inRange(d.sumLo - x, d.sumHi - x)) / Z;
   }
-  return { mean: mean / Z / d.rated / 10, mode, third: third.map((t) => t / Z), expect, Z };
+  return { mean: mean / Z / d.rated / 10, mode, modeLo, modeHi, third: third.map((t) => t / Z), expect, Z };
 }
 const GRADE_KO_SHORT = { beginner: "비기너", amateur: "아마추어", semipro: "세미프로", pro: "프로" };
 const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value == null ? "" : (Math.floor(v.value * 10 + 1e-9) / 10).toFixed(1)); };
@@ -771,13 +773,25 @@ const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value =
 // ① 지금 레벨: 유력 평균(크게) + 레벨 안 위치 게이지 (점이 있는 칸 라임)
 // 화면 기준값(유력 평균) = 가장 유력한 구성의 평균. 신청자 레벨 그래프·숫자·게이지·목록 아이콘이 모두 이 값
 function levelPoint(d, r, bc) { return bc ? bc.mean : r.mode; }
+/**
+ * 화면용 구성: 유력 평균(가장 가능성 높은 평균값)이 나오는 구성 중 가장 유력한 것.
+ * 점수 합 범위를 유력 평균의 합(동률이면 그 값들 범위)으로 좁혀서 bestComposition을 돌림
+ * → 숫자는 유력 평균 그대로(채점상 가장 정확), 그래프는 그 숫자와 맞는 구성.
+ */
+function displayComposition(d, r) {
+  const n10 = d.rated * 10;
+  const lo = Math.ceil(r.modeLo - 1e-9), hi = Math.floor(r.modeHi + 1e-9);
+  const bc = bestComposition({ ...d, sumLo: lo, sumHi: hi }, r, d);
+  if (bc) bc.mean = r.mode; // 숫자는 유력 평균 (구성의 평균도 이 범위 안)
+  return bc;
+}
 function nowLevelHtml(d, r, bc) {
   if (!r) return `<p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
   // 기준은 '유력 평균'(가장 가능성 높은 평균값): 숫자·점·라임 칸·목록 아이콘·레벨 그래프 라임이 모두 이 값
-  // 점 위치 = 화면에 보이는 숫자(아마4.x의 x, 내림) 기준: .0은 왼쪽 끝, .9는 오른쪽 끝 (숫자와 점이 항상 일치)
+  // 점 위치 = 화면에 보이는 숫자(아마4.x의 x, 내림) 기준 (숫자와 점이 항상 일치)
   const pt = levelPoint(d, r, bc);
   const dg = Math.min(9, Math.max(0, Math.floor(((pt - d.bandLo) / (d.bandHi - d.bandLo)) * 10 + 1e-9)));
-  const pos = (dg / 9) * 100;
+  const pos = dg * 10; // .0 왼쪽 끝 · .5 가운데 · .9 오른쪽 끝 근처
   const top = meanThird(pt, d.bandLo, d.bandHi);
   const num = (levelDecimal((d.bandLo + d.bandHi) / 2).value ?? 0) | 0;
   return `<div class="lvnow"><span class="big">${esc(decText(pt))}</span><span class="cap">유력 평균</span></div>
@@ -801,7 +815,7 @@ function composition(k, exp) { // 기대 인원을 정수로 (큰 나머지 순)
   exp.map((e, i) => [e - fl[i], i]).sort((x, y) => y[0] - x[0]).forEach(([, i]) => { if (left > 0) { fl[i]++; left--; } });
   return fl;
 }
-function bestComposition(d, r) {
+function bestComposition(d, r, full) { // full: 확률(%)을 계산할 원래 기록 범위 {sumLo, sumHi} (없으면 d와 같음)
   const tenth = (L) => [Math.round(SCORE_BANDS[L][0] * 10), Math.round(SCORE_BANDS[L][1] * 10)];
   const grades = Object.entries(GRADE_LV).filter(([g]) => d.counts[g] > 0).map(([g, [a, b]]) => {
     const lv = []; for (let l = a; l <= b; l++) lv.push(l);
@@ -862,7 +876,15 @@ function bestComposition(d, r) {
   }
   if (!best || bestS <= -1e9) return null;
   // mean: 그 구성일 때의 평균 점수 (기록 범위 안 조건부) → 화면의 '유력 평균'
-  return { grades, counts: best, prob: Math.exp(bestS) / r.Z, exact: total <= 6000, mean: bestMean / d.rated / 10 };
+  // 표시 확률: 원래 기록 범위 기준으로 이 구성이 맞을 확률
+  let prob = Math.exp(bestS) / r.Z;
+  if (full) {
+    let D = { off: 0, arr: [1] };
+    grades.forEach((G, gi) => best[gi].forEach((n, li) => { if (n) D = conv(D, block(G.lv[li], n)); }));
+    let pf = 0; for (let s = Math.max(full.sumLo, D.off); s <= full.sumHi && s - D.off < D.arr.length; s++) pf += D.arr[s - D.off];
+    prob = Math.exp(priorLog(best)) * pf / r.Z;
+  }
+  return { grades, counts: best, prob, exact: total <= 6000, mean: bestMean / d.rated / 10 };
 }
 const GRADE_CLASS = { beginner: "g-b", amateur: "g-a", semipro: "g-s", pro: "g-p" };
 function peopleHtml(d, r, bc) {
@@ -925,7 +947,7 @@ async function openHistory(id) {
   const range = e && e.hi - e.lo < (e.bandHi - e.bandLo) * 0.99 ? ` (추정평균 ${levelRangeText(e.lo, e.hi)})` : "";
   const nowLv = m.average_level && m.average_level !== "루키" ? short(m.average_level) : null;
   const dr = data.dist ? levelDist(data.dist) : null;
-  const bc = dr ? bestComposition(data.dist, dr) : null;
+  const bc = dr ? displayComposition(data.dist, dr) : null;
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><div class="head-btns"><button class="x-btn" id="hist-share" type="button" aria-label="이 매치 공유"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명</span></div>
