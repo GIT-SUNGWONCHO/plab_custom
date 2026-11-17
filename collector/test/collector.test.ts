@@ -343,7 +343,7 @@ describe("API", () => {
     await runCollector(asD1(db), client, T0);
     const matches = (await (await handleFetch(req("/api/matches?from=2026-11-14&to=2026-11-14"), env(), client)).json()) as { id: number; url: string; snapshot_count: number }[];
     assert.equal(matches.length, 1);
-    assert.equal(matches[0].url, "https://www.plabfootball.com/match/2/");
+    assert.equal(matches[0].url, "https://plabfootball.com/match/2/");
     assert.equal(matches[0].snapshot_count, 1);
     const snaps = (await (await handleFetch(req("/api/matches/2/snapshots"), env(), client)).json()) as unknown[];
     assert.equal(snaps.length, 1);

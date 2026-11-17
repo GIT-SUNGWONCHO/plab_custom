@@ -219,4 +219,8 @@ export class PlabClient {
   }
 }
 
-export const matchUrl = (id: number) => `${PLAB_BASE}/match/${id}/`;
+/**
+ * 매치 링크. www 없는 주소를 씀: 플랩이 안드로이드 앱 연결(assetlinks)을 plabfootball.com에만 해둬서
+ * 안드로이드에서는 플랩 앱으로 열림 (아이폰은 플랩이 앱 연결을 안 해둬서 웹으로 열림).
+ */
+export const matchUrl = (id: number) => `https://plabfootball.com/match/${id}/`;

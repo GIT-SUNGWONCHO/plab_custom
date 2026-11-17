@@ -927,7 +927,8 @@ async function openHistory(id) {
   $("hist-x").onclick = () => bg.remove();
   $("hist-share").onclick = () => {
     const lvTxt = dr ? decText(dr.mode) : nowLv || "–";
-    shareLink(`${location.origin}/?m=${m.id}`, "플랩레이더",
+    // 플랩 매치 링크 (www 없는 주소 = 안드로이드에서 플랩 앱으로 열림)
+    shareLink(`https://plabfootball.com/match/${m.id}/`, "플랩풋볼 매치",
       `${fmtDate(m.kst_date)} ${m.kst_time} ${shortStadium(m.title)} · 평균 ${lvTxt} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명`);
   };
   if (pts.length < 2) return;
