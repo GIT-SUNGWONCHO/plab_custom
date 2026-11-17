@@ -676,7 +676,7 @@ function levelDist(d) {
     const inRange = (lo, hi) => { lo = Math.max(0, lo); hi = Math.min(R.length - 1, hi); return hi < lo ? 0 : pre[hi + 1] - pre[lo]; };
     for (const [x, p] of person[g]) expect[lvOf(x)] += (k * p * inRange(d.sumLo - x, d.sumHi - x)) / Z;
   }
-  return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), expect };
+  return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), expect, Z };
 }
 const GRADE_KO_SHORT = { beginner: "비기너", amateur: "아마추어", semipro: "세미프로", pro: "프로" };
 const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value == null ? "" : (Math.floor(v.value * 10 + 1e-9) / 10).toFixed(1)); };
@@ -696,25 +696,85 @@ function nowLevelHtml(d, r) {
     </div>`;
 }
 
-// ② 신청자 레벨: 한 사람당 칩 하나로 "예상 구성"
-//   등급마다 레벨별 기대 인원(확률 합)을 실제 인원 수에 맞게 정수로 나눔 (큰 나머지 순으로 1명씩)
-function composition(k, exp) {
+// ② 신청자 레벨: 한 사람당 칩 하나로 "가장 유력한 구성"
+//   사람마다 따로 유력한 레벨을 고르면 서로 안 맞는 조합이 섞일 수 있음
+//   (예: 비기너는 "비기너1 + 아마추어 높음" 시나리오에서, 아마추어는 "비기너3 + 아마추어 낮음" 시나리오에서 가져옴)
+//   → 등급별 레벨 인원 조합 전체를 한 덩어리로 비교해서 확률이 가장 높은 것을 고름
+//   구성 확률 ∝ (사전 비율로 그 구성이 나올 확률) × (그 구성일 때 점수 합이 기록 범위에 들어갈 확률)
+const LOGF = [0]; for (let i = 1; i <= 80; i++) LOGF[i] = LOGF[i - 1] + Math.log(i);
+function composition(k, exp) { // 기대 인원을 정수로 (큰 나머지 순) — 근사 탐색의 출발점
   const fl = exp.map((e) => Math.floor(e + 1e-9));
   let left = k - fl.reduce((a, b) => a + b, 0);
   exp.map((e, i) => [e - fl[i], i]).sort((x, y) => y[0] - x[0]).forEach(([, i]) => { if (left > 0) { fl[i]++; left--; } });
   return fl;
 }
+function bestComposition(d, r) {
+  const tenth = (L) => [Math.round(SCORE_BANDS[L][0] * 10), Math.round(SCORE_BANDS[L][1] * 10)];
+  const grades = Object.entries(GRADE_LV).filter(([g]) => d.counts[g] > 0).map(([g, [a, b]]) => {
+    const lv = []; for (let l = a; l <= b; l++) lv.push(l);
+    const z = lv.reduce((t, l) => t + d.prior[l], 0);
+    return { g, k: d.counts[g], lv, lw: lv.map((l) => Math.log(d.prior[l] / z)) };
+  });
+  // n명이 모두 레벨 L일 때 점수 합 분포 (레벨 안 점수는 고르게), 시작값 off
+  const cache = new Map();
+  const block = (L, n) => {
+    const key = L * 100 + n; if (cache.has(key)) return cache.get(key);
+    const [lo, hi] = tenth(L), w = hi - lo + 1;
+    let arr = [1];
+    for (let i = 0; i < n; i++) { const nx = new Array(arr.length + w - 1).fill(0); arr.forEach((p, s) => { for (let j = 0; j < w; j++) nx[s + j] += p / w; }); arr = nx; }
+    const v = { off: lo * n, arr }; cache.set(key, v); return v;
+  };
+  const conv = (A, Bk) => { const out = new Array(A.arr.length + Bk.arr.length - 1).fill(0); A.arr.forEach((p, i) => { if (p) Bk.arr.forEach((q, j) => { out[i + j] += p * q; }); }); return { off: A.off + Bk.off, arr: out }; };
+  const inRange = (D) => { let t = 0; for (let s = Math.max(d.sumLo, D.off); s <= d.sumHi && s - D.off < D.arr.length; s++) t += D.arr[s - D.off]; return t; };
+  const priorLog = (counts) => grades.reduce((t, G, gi) => t + LOGF[G.k] + counts[gi].reduce((u, n, li) => u - LOGF[n] + n * G.lw[li], 0), 0);
+  const score = (counts) => {
+    let D = { off: 0, arr: [1] };
+    grades.forEach((G, gi) => counts[gi].forEach((n, li) => { if (n) D = conv(D, block(G.lv[li], n)); }));
+    const p = inRange(D); return p > 0 ? priorLog(counts) + Math.log(p) : -Infinity;
+  };
+  const choose = (n, k) => { let x = 1; for (let i = 1; i <= k; i++) x = (x * (n - k + i)) / i; return x; };
+  const total = grades.reduce((t, G) => t * choose(G.k + G.lv.length - 1, G.lv.length - 1), 1);
+  let best = null, bestS = -Infinity;
+  if (total <= 6000) {
+    // 전부 따져보기: 등급·레벨 순서로 인원을 정하며 점수 합 분포를 이어 붙임 (앞부분 계산은 공유)
+    const counts = grades.map((G) => G.lv.map(() => 0));
+    const dfs = (gi, li, left, D) => {
+      if (gi === grades.length) { const p = inRange(D); if (p > 0) { const sc = priorLog(counts) + Math.log(p); if (sc > bestS) { bestS = sc; best = counts.map((c) => c.slice()); } } return; }
+      const G = grades[gi], last = li === G.lv.length - 1;
+      for (let n = last ? left : 0; n <= left; n++) {
+        counts[gi][li] = n;
+        const D2 = n ? conv(D, block(G.lv[li], n)) : D;
+        if (last) dfs(gi + 1, 0, gi + 1 < grades.length ? grades[gi + 1].k : 0, D2); else dfs(gi, li + 1, left - n, D2);
+      }
+      counts[gi][li] = 0;
+    };
+    dfs(0, 0, grades[0].k, { off: 0, arr: [1] });
+  } else {
+    // 너무 많으면: 기대 인원에서 출발해 한 명씩 레벨을 옮겨 보며 확률이 오르는 쪽으로 (언덕 오르기)
+    best = grades.map((G) => composition(G.k, G.lv.map((l) => r.expect[l])));
+    bestS = score(best);
+    for (let round = 0; round < 60; round++) {
+      let moved = null, movedS = bestS;
+      grades.forEach((G, gi) => G.lv.forEach((_, a) => { if (!best[gi][a]) return; G.lv.forEach((__, b) => {
+        if (a === b) return; const c = best.map((x) => x.slice()); c[gi][a]--; c[gi][b]++;
+        const sc = score(c); if (sc > movedS + 1e-12) { movedS = sc; moved = c; }
+      }); }));
+      if (!moved) break; best = moved; bestS = movedS;
+    }
+  }
+  if (!best) return null;
+  return { grades, counts: best, prob: Math.exp(bestS) / r.Z, exact: total <= 6000 };
+}
 const GRADE_CLASS = { beginner: "g-b", amateur: "g-a", semipro: "g-s", pro: "g-p" };
 function peopleHtml(d, r) {
   if (!r) return d && d.counts.rookie ? `<p class="note">루키 ${d.counts.rookie}명 (평균에서 빠져요)</p>` : "";
   const grades = Object.entries(GRADE_LV).filter(([g]) => d.counts[g] > 0);
+  const bc = bestComposition(d, r);
   const chips = [];
-  for (const [g, [a, b]] of grades) {
-    const lv = []; for (let l = a; l <= b; l++) lv.push(l);
-    const cnt = composition(d.counts[g], lv.map((l) => r.expect[l]));
-    lv.forEach((l, i) => { for (let j = 0; j < cnt[i]; j++) chips.push(`<span class="pc ${GRADE_CLASS[g]}">${esc(short(LV[l]))}</span>`); });
-  }
+  if (bc) bc.grades.forEach((G, gi) => G.lv.forEach((l, li) => { for (let j = 0; j < bc.counts[gi][li]; j++) chips.push(`<span class="pc ${GRADE_CLASS[G.g]}">${esc(short(LV[l]))}</span>`); }));
   for (let j = 0; j < (d.counts.rookie || 0); j++) chips.push(`<span class="pc g-r">루키</span>`);
+  const pct = bc ? Math.round(bc.prob * 100) : 0;
+  const note = bc ? `가장 유력한 구성 · ${pct >= 1 ? pct + "%" : "1% 미만"}` : "";
   const share = (g, l) => r.expect[l] / d.counts[g];
   const detail = grades.map(([g, [a, b]]) => {
     const cells = []; for (let l = a; l <= b; l++) cells.push(l);
@@ -724,10 +784,10 @@ function peopleHtml(d, r) {
     }).join("")}</span></li>`;
   }).join("");
   return `<div class="pchips">${chips.join("")}</div>
-    <p class="hint">한 칸이 한 사람이에요. 확률로 가장 그럴듯하게 나눈 예상 구성이라 실제와 다를 수 있어요.${d.counts.rookie ? " 루키는 평균에서 빠져요." : ""}</p>
+    <p class="hint">${note}${d.counts.rookie ? " · 루키는 평균 제외" : ""}</p>
     <details class="pdetail"><summary>레벨별 확률 자세히</summary>
       <ul class="heat">${detail}</ul>
-      <p class="hint">각 사람이 그 레벨일 확률이에요. 칸이 진할수록 유력해요.</p>
+      <p class="hint">한 사람이 그 레벨일 확률</p>
     </details>`;
 }
 
