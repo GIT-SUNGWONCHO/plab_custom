@@ -195,11 +195,11 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .lvnow .cap { font-size: 12px; color: var(--fg-3) }
 .gauge { display: grid; grid-template-columns: 14px 1fr 14px; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums }
 .gauge .ge { text-align: center }
-.gauge .gt { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; height: 10px }
+.gauge .gt { position: relative; display: grid; grid-template-columns: 3fr 4fr 3fr; gap: 2px; height: 10px }
 .gauge .gt i { background: var(--fg-3); border-radius: 2px }
 .gauge .gt i.top { background: var(--brand); opacity: 1 }
 .gauge .gt b { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--fg); border: 2px solid var(--surface) }
-.gauge .gl { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center }
+.gauge .gl { display: grid; grid-template-columns: 3fr 4fr 3fr; text-align: center }
 .gauge .gl b { color: var(--fg); font-weight: 700 }
 .heat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
 .heat li { display: grid; grid-template-columns: 76px 1fr; gap: 8px; align-items: center; font-size: 12px }
@@ -384,7 +384,11 @@ function rowHtml(it) {
 }
 
 let last = null;
-// 목록 아이콘(레벨 안 위치)을 팝업과 같은 확률 계산으로: 한쪽이 50% 이상이면 ▼ ● ▲, 아니면 없음
+// 예상 평균(점)이 레벨 구간 3칸 중 어디에 있는지: 0 낮음 · 1 가운데 · 2 높음
+// 칸 경계는 화면 표기(아마3.x의 x, 내림)에 맞춤: .0~.2 낮음 · .3~.6 가운데 · .7~.9 높음
+const thirdOfDigit = (x01) => { const dg = Math.min(9, Math.max(0, Math.floor(x01 * 10 + 1e-9))); return dg <= 2 ? 0 : dg <= 6 ? 1 : 2; };
+const meanThird = (mean, lo, hi) => thirdOfDigit((mean - lo) / (hi - lo));
+// 목록 아이콘(레벨 안 위치) = 팝업 게이지의 점이 있는 칸
 function addProbTiers(data) {
   if (data._prob) return;
   data._prob = true;
@@ -395,9 +399,9 @@ function addProbTiers(data) {
     if (!it.dist || !data.prior) continue;
     const r = levelDist({ prior: data.prior, ...it.dist, bandLo: e.bandLo, bandHi: e.bandHi }, true);
     if (!r) continue;
-    const top = r.third.indexOf(Math.max(...r.third));
-    it.pbucket = e.labelNum * 3 + top;
-    if (r.third[top] > 0.5 + 1e-6) it.probTier = ["low", "mid", "high"][top];
+    const k = meanThird(r.mean, e.bandLo, e.bandHi);
+    it.pbucket = e.labelNum * 3 + k;
+    it.probTier = ["low", "mid", "high"][k];
   }
   // 추천순: 서버와 같은 순서인데, 같은 시각 안의 레벨 칸만 확률 기준으로
   data.items.sort((a, b) =>
@@ -434,8 +438,8 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <h4>레벨 보는 법</h4>
   <p><b>초록 레벨</b> 평균이 아마3 이하인 매치.</p>
   <p><b>평균 레벨 (시간 아래)</b> 플랩이 보여주는 참가자 평균 레벨 (루키 제외). 플랩 내부 점수로 아마3은 2.5~2.6이고, 평균 아마3이면 평균 점수가 2.45~2.65 사이라, 화면에서는 이 범위를 아마3.0~3.9로 바꿔서 보여줘요. 아마3.5가 가운데라, 3.2면 낮은 3, 3.8이면 높은 3. 평가된 신청자가 없으면 –.</p>
-  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 평균이 높은 쪽 / 가운데 / 낮은 쪽일 확률이 50%를 넘는다는 뜻 (추정). 레벨 칩을 누르면 자세히 나와요.</p>
-  <p><b>아이콘 없음</b> 어느 쪽도 50%를 넘지 않는 매치.</p>
+  <p><b>${tierIc("high")} ${tierIc("mid")} ${tierIc("low")}</b> 그 레벨 구간을 3칸으로 나눴을 때 예상 평균이 높은 쪽 / 가운데 / 낮은 쪽에 있다는 뜻 (추정). 레벨 칩을 누르면 자세히 나와요.</p>
+  <p><b>아이콘 없음</b> 평가된 신청자가 없어 평균이 없는 매치.</p>
   <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
   <h4>매치 카드</h4>
   <p><b>마감임박</b> 신청 15명 이상.</p>
@@ -695,7 +699,7 @@ function levelDist(d, light = false) {
     const p = total[s]; if (!p) continue;
     Z += p; mean += p * s;
     const m = s / d.rated / 10;
-    third[Math.min(2, Math.max(0, Math.floor(((m - d.bandLo) / (d.bandHi - d.bandLo)) * 3)))] += p;
+    third[thirdOfDigit((m - d.bandLo) / (d.bandHi - d.bandLo))] += p;
   }
   if (!Z) return null;
   if (light) return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), Z };
@@ -717,14 +721,14 @@ const decText = (x) => { const v = levelDecimal(x); return v.prefix + (v.value =
 function nowLevelHtml(d, r) {
   if (!r) return `<p class="note">아직 평가된 신청자가 없어 평균이 없어요.</p>`;
   const pos = Math.min(100, Math.max(0, ((r.mean - d.bandLo) / (d.bandHi - d.bandLo)) * 100));
-  const top = r.third.indexOf(Math.max(...r.third));
+  const top = meanThird(r.mean, d.bandLo, d.bandHi);
   const num = (levelDecimal((d.bandLo + d.bandHi) / 2).value ?? 0) | 0;
   return `<div class="lvnow"><span class="big">${esc(decText(r.mean))}</span><span class="cap">예상 평균</span></div>
     <div class="gauge" role="img" aria-label="낮은 쪽 ${Math.round(r.third[0] * 100)}%, 가운데 ${Math.round(r.third[1] * 100)}%, 높은 쪽 ${Math.round(r.third[2] * 100)}%">
       <span class="ge">${num || ""}</span>
       <span class="gt">${r.third.map((p, i) => i === top ? `<i class="top"></i>` : `<i style="opacity:${(0.1 + 0.5 * p).toFixed(2)}"></i>`).join("")}<b style="left:${pos.toFixed(1)}%"></b></span>
       <span class="ge">${num ? num + 1 : ""}</span>
-      <span></span><span class="gl">${["낮음", "가운데", "높음"].map((n, i) => i === top ? `<b>${n} ${Math.round(r.third[i] * 100)}%</b>` : `<span>${n}</span>`).join("")}</span><span></span>
+      <span></span><span class="gl">${["낮음", "가운데", "높음"].map((n, i) => i === top ? `<b>${n}</b>` : `<span>${n}</span>`).join("")}</span><span></span>
     </div>`;
 }
 
