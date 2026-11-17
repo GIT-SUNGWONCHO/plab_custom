@@ -286,8 +286,17 @@ function ago(iso) {
   return m < 1 ? "방금 갱신" : m < 60 ? `${m}분 전 갱신` : `${Math.round(m / 60)}시간 전 갱신`;
 }
 
+// 이 화면의 버전 (서버가 배포 때 채움). 서버 버전과 다르면 새 화면 코드를 받으러 새로고침
+const BUILD = "__BUILD__";
+function checkBuild(res) {
+  const b = res.headers.get("x-build");
+  if (!b || b === BUILD || document.querySelector(".sheet-bg")) return; // 팝업을 보는 중이면 다음 기회에
+  try { if (sessionStorage.getItem("reloaded-for") === b) return; sessionStorage.setItem("reloaded-for", b); } catch (e) {}
+  location.reload();
+}
 async function api(path) {
   const res = await fetch(path);
+  checkBuild(res);
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
 }

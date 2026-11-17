@@ -1,11 +1,21 @@
 // Worker 진입점: 크론(수집) + HTTP(보드 화면, API)
 // 보드 HTML은 텍스트로 번들 (wrangler.toml [[rules]] Text)
 
-import page from "../public/index.html";
+import pageSrc from "../public/index.html";
 import icon192 from "../public/icons/icon-192.png";
 import icon512 from "../public/icons/icon-512.png";
 import appleIcon from "../public/icons/apple-touch-icon.png";
 import { MANIFEST, SW_JS } from "./pwa.ts";
+
+// 화면 버전: 화면 코드(HTML)의 해시. 배포로 화면이 바뀌면 값이 바뀜.
+// 화면에 심어두고, /api/board 응답 헤더(x-build)로도 알려줌 → 열려 있던 홈 화면 앱이 다르면 스스로 새로고침
+function fnv1a(str: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16);
+}
+const BUILD = fnv1a(pageSrc);
+const page = pageSrc.replace("__BUILD__", BUILD);
 
 // 정적 파일: 경로 → [내용, 형식]
 const STATIC: Record<string, [BodyInit, string]> = {
@@ -56,6 +66,11 @@ export default {
       const cache = pathname === "/sw.js" ? "no-cache" : "public, max-age=86400";
       return Promise.resolve(new Response(st[0], { headers: { "content-type": st[1], "cache-control": cache } }));
     }
-    return handleFetch(req, env);
+    return handleFetch(req, env).then((res) => {
+      if (!pathname.startsWith("/api/board")) return res;
+      const out = new Response(res.body, res);
+      out.headers.set("x-build", BUILD);
+      return out;
+    });
   },
 } satisfies ExportedHandler<Env>;
