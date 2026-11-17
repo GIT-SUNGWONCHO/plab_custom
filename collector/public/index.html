@@ -145,6 +145,9 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .sheet h2 { margin: 0; font-size: 18px }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px }
 .sheet-head .x-btn { flex: none }
+.sheet .cond.cur { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.sheet .link { appearance: none; border: 0; background: none; padding: 4px 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--blue); white-space: nowrap; cursor: pointer }
+.sheet .link:disabled { color: var(--fg-3) }
 .sheet p, .sheet ol, .sheet .cond { word-break: keep-all }
 .sheet p { margin: 0; font-size: 14px; color: var(--fg-2) }
 .sheet .cond { background: var(--muted); border-radius: 12px; padding: 10px 12px; font-size: 14px }
@@ -493,7 +496,7 @@ function openSheet() {
   bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <div class="sheet-head"><h2 id="sheet-title">알림 받기</h2><button class="x-btn" id="sheet-close" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <p>조건 안의 <b>평균 아마3 이하</b> 매치가 <b>신청 10명</b>을 넘거나 <b>마감임박(15명+)</b>이 되면 휴대폰으로 알려드려요. 밤 12시~아침 8시엔 쉬고 8시에 몰아서 보내요.</p>
-    ${alertSub ? `<div class="cond">지금 받는 조건: ${condText(subCond(alertSub))}</div>` : ""}
+    ${alertSub ? `<div class="cond cur"><span>지금 받는 조건: ${condText(subCond(alertSub))}</span><button class="link" id="alert-test" type="button">테스트 알림</button></div>` : ""}
     ${alertSub && same ? "" : `<div class="cond">${alertSub ? "바꿀 조건(지금 화면 필터)" : "알림 조건(지금 화면 필터)"}: ${condText(cur)}</div>`}
     ${canPush ? "" : IS_IOS && !STANDALONE ? `<div class="cond">아이폰은 <b>홈 화면에 추가한 앱</b>에서만 알림을 받을 수 있어요.
       <ol><li>사파리 아래쪽 <b>공유 버튼</b>(네모에 위쪽 화살표)을 눌러요.</li><li><b>홈 화면에 추가</b>를 눌러요.</li><li>홈 화면의 <b>플랩레이더</b> 아이콘으로 열고 🔔를 다시 눌러요.</li></ol>
@@ -501,8 +504,7 @@ function openSheet() {
       : `<div class="cond">이 브라우저는 알림을 지원하지 않아요${IS_IOS ? ". iOS 16.4 이상으로 업데이트해 주세요" : ". 크롬·사파리 최신 버전에서 열어 주세요"}.</div>`}
     <div class="btns">
       ${canPush && pushLabel ? `<button class="btn" id="push-on" type="button">${pushLabel}</button>` : ""}
-      ${alertSub ? `<button class="btn sub" id="alert-test" type="button">테스트 알림 보내기</button>
-      <button class="btn danger" id="alert-off" type="button">알림 끄기</button>` : ""}
+      ${alertSub ? `<button class="btn danger" id="alert-off" type="button">알림 끄기</button>` : ""}
     </div>
     <p class="note" id="sheet-note" aria-live="polite"></p>
   </div>`;
