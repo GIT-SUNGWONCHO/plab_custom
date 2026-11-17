@@ -142,7 +142,7 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .sheet { width: 100%; max-width: 640px; max-height: 88%; overflow-y: auto; background: var(--surface); border-radius: 18px 18px 0 0;
   padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   display: flex; flex-direction: column; gap: 14px }
-.sheet h2 { margin: 0; font-size: 18px }
+.sheet h2 { margin: 0; font-size: 18px; word-break: keep-all; overflow-wrap: anywhere }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px }
 .sheet-head .x-btn { flex: none }
 .sheet .cond.cur { display: flex; align-items: center; justify-content: space-between; gap: 10px }
