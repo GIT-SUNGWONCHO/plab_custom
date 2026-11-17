@@ -143,6 +143,22 @@ export function ntfyFetchWith(token: string | undefined, relay?: { url?: string;
   };
 }
 
+/**
+ * PC 발송기 방식: ntfy로 바로 보내지 않고 alert_outbox에 쌓음 (성공으로 응답).
+ * PC가 /api/relay/outbox로 가져가 집 IP에서 ntfy로 보내고 /api/relay/ack로 완료 표시.
+ */
+export function outboxFetch(db: D1Database, fallback: FetchFn): FetchFn {
+  return async (input, init) => {
+    if (input !== NTFY_BASE || typeof init?.body !== "string") return fallback(input, init);
+    await db.prepare("INSERT INTO alert_outbox (payload, created_at) VALUES (?, ?)").bind(init.body, new Date().toISOString()).run();
+    return new Response(JSON.stringify({ queued: true }), { status: 200 });
+  };
+}
+/** 이 시간보다 오래 못 보낸 알림은 버림 (PC가 오래 꺼져 있었으면 지난 알림은 의미 없음) */
+export const OUTBOX_MAX_AGE_MS = 3 * 3600_000;
+/** PC 발송기가 이 시간 안에 한 번이라도 가져갔으면 켜져 있다고 봄 */
+export const RELAY_ALIVE_MS = 2 * 60_000;
+
 /** 실제로 보낸 알림 종류 (하루 상한 계산용). 'ten_skipped'는 마감임박 때문에 생략한 기록이라 제외 */
 export const SENT_KINDS = "('ten', 'soon', 'test')";
 export const MAX_SENDS_PER_SUB_PER_RUN = 3;
@@ -163,6 +179,7 @@ export async function runAlerts(db: D1Database, fetchFn: FetchFn, now = new Date
   const nowIso = now.toISOString();
   // 지난 날짜 구독은 정리
   await db.prepare("DELETE FROM alert_sub WHERE date < ?").bind(today).run();
+  await db.prepare("DELETE FROM alert_outbox WHERE created_at < ?").bind(new Date(now.getTime() - 2 * 86400_000).toISOString()).run();
   if (isQuietHour(now)) { result.skippedQuiet = true; return result; }
 
   // 하루 상한 (ntfy 계정 한도는 UTC 자정 기준으로 초기화 → 여기서도 UTC 날짜로 셈)

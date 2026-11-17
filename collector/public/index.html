@@ -479,7 +479,9 @@ function openSheet() {
     test.disabled = true; note("보내는 중…");
     const res = await fetch("/api/alerts/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ topic }) }).catch(() => null);
     const body = res ? await res.json().catch(() => ({})) : {};
-    note(res && res.ok ? "보냈어요. ntfy 앱에 알림이 왔는지 확인해 주세요." : body.error || "보내지 못했어요. 잠시 후 다시 시도해 주세요.");
+    note(!(res && res.ok) ? body.error || "보내지 못했어요. 잠시 후 다시 시도해 주세요."
+      : body.queued && !body.relayAlive ? "알림 발송기가 지금 꺼져 있어요. 발송기가 켜지면 보내드려요."
+      : "보냈어요. ntfy 앱에 알림이 왔는지 확인해 주세요.");
     setTimeout(() => { test.disabled = false; }, 3000);
   };
   const off = $("alert-off");

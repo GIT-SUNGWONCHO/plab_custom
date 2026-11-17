@@ -2,9 +2,11 @@
 // 보드 HTML은 텍스트로 번들 (wrangler.toml [[rules]] Text)
 
 import page from "../public/index.html";
-import { ntfyFetchWith, runAlerts } from "./alerts.ts";
+import relayInstall from "../relay/install.ps1";
+import relayScript from "../relay/plab-relay.ps1";
+import { runAlerts } from "./alerts.ts";
 import { runCollector } from "./collector.ts";
-import { handleFetch, type Env } from "./index.ts";
+import { handleFetch, makeNtfyFetch, type Env } from "./index.ts";
 import { PlabClient } from "./plab.ts";
 
 export default {
@@ -19,7 +21,7 @@ export default {
           console.error("collector failed", e);
         }
         // 수집 직후 알림 판단 (수집 실패와 상관없이 실행)
-        const a = await runAlerts(env.DB, ntfyFetchWith(env.NTFY_TOKEN, { url: env.NTFY_RELAY_URL, secret: env.NTFY_RELAY_SECRET }), now).catch((e) => {
+        const a = await runAlerts(env.DB, makeNtfyFetch(env), now).catch((e) => {
           console.error("alerts error", e);
           return null;
         });
@@ -35,6 +37,11 @@ export default {
           headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" },
         }),
       );
+    }
+    // PC 알림 발송기 설치 스크립트 (비밀값 없음, 공개)
+    const ps = pathname === "/relay/install.ps1" ? relayInstall : pathname === "/relay/plab-relay.ps1" ? relayScript : null;
+    if (req.method === "GET" && ps) {
+      return Promise.resolve(new Response(ps, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-cache" } }));
     }
     return handleFetch(req, env);
   },

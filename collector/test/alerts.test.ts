@@ -152,3 +152,22 @@ test("ntfy 중계: 중계 성공이면 직접 안 보냄, 중계 실패면 직�
   assert.deepEqual(calls.map((c) => c.url), ["https://relay.example/exec", NTFY_BASE]);
   assert.equal(calls[1].auth, "Bearer tok");
 });
+
+test("PC 발송기: 알림은 목록에 쌓이고, 가져가서 완료 표시하면 다시 안 나옴", async () => {
+  const { handleFetch } = await import("../src/index.ts");
+  const db = new D1Shim();
+  const env = { DB: asD1(db), ADMIN_TOKEN: "admin", PC_RELAY_SECRET: "pc-secret" } as never;
+  const call = (path: string, method = "GET", body?: unknown, auth = "pc-secret") =>
+    handleFetch(new Request(`https://x.dev${path}`, { method, headers: { authorization: `Bearer ${auth}` }, body: body ? JSON.stringify(body) : undefined }), env);
+  assert.equal((await call("/api/relay/outbox", "GET", undefined, "wrong")).status, 401);
+  // 구독 + 테스트 알림 → 목록에 쌓임 (발송기는 아직 안 붙음)
+  const topic = "plabradar-abcdefghijkl";
+  await handleFetch(new Request("https://x.dev/api/alerts", { method: "PUT", body: JSON.stringify({ topic, date: "2099-01-01", from: "10:00", to: "17:00" }) }), env);
+  const t = await (await handleFetch(new Request("https://x.dev/api/alerts/test", { method: "POST", body: JSON.stringify({ topic }) }), env)).json() as { ok: boolean; queued: boolean; relayAlive: boolean };
+  assert.deepEqual(t, { ok: true, queued: true, relayAlive: false });
+  const out = await (await call("/api/relay/outbox")).json() as { items: { id: number; payload: string }[] };
+  assert.equal(out.items.length, 1);
+  assert.equal(JSON.parse(out.items[0].payload).topic, topic);
+  await call("/api/relay/ack", "POST", { sent: [out.items[0].id] });
+  assert.equal(((await (await call("/api/relay/outbox")).json()) as { items: unknown[] }).items.length, 0);
+});
