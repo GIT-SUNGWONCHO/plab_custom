@@ -727,11 +727,16 @@ function levelDist(d, light = false) {
   for (let s = d.sumLo; s <= d.sumHi && s < total.length; s++) {
     const p = total[s]; if (!p) continue;
     Z += p; mean += p * s;
-    if (p > modeP) { modeP = p; modeS = s; } // 가장 가능성 높은 점수 합 → 유력 평균
+    if (p > modeP) modeP = p;
     const m = s / d.rated / 10;
     third[thirdOfDigit((m - d.bandLo) / (d.bandHi - d.bandLo))] += p;
   }
   if (!Z) return null;
+  // 유력 평균 = 확률이 가장 큰 점수 합 ÷ 인원. 확률이 같은 값이 여럿이면 그 값들의 가운데
+  //   (예: 1명 아마1 → 2.1·2.2 반반 → 2.15, 근거 없이 한쪽으로 치우치지 않게)
+  let tieSum = 0, tieN = 0;
+  for (let s = d.sumLo; s <= d.sumHi && s < total.length; s++) if (total[s] >= modeP * (1 - 1e-9)) { tieSum += s; tieN++; }
+  modeS = tieSum / tieN;
   const mode = modeS / d.rated / 10;
   if (light) return { mean: mean / Z / d.rated / 10, mode, third: third.map((t) => t / Z), Z };
   const expect = Array(13).fill(0);
