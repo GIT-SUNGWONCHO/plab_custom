@@ -6,7 +6,7 @@ import { type Deliver, isPushEndpoint, makeDeliver, MAX_SUBSCRIPTIONS, MAX_TESTS
 import type { VapidKeys } from "./webpush.ts";
 import { buildBoard, type BoardMatchRow } from "./board.ts";
 import { runCollector } from "./collector.ts";
-import { levelBucket, traceLevels, type SnapLevel } from "./estimate.ts";
+import { levelBucket, traceLevels, type SnapLevel, allCounts, levelPrior } from "./estimate.ts";
 import { matchUrl, PlabClient, type FetchFn } from "./plab.ts";
 
 export interface Env {
@@ -101,9 +101,29 @@ export async function handleFetch(
     ).bind(id).all<SnapLevel & { ts: string }>();
     const trace = traceLevels(snaps);
     const est = trace.length ? trace[trace.length - 1].estimate : null;
+    // 레벨 분포 추정 재료: 쌓인 개인 레벨 관측으로 만든 레벨별 비율(사전 분포) + 지금 등급별 인원 + 점수 합 범위.
+    // 레벨 조합 확률 계산은 무거워서 화면(폰)에서 함
+    let dist = null;
+    const counts = snaps.length ? allCounts(snaps[snaps.length - 1]) : null;
+    if (est && counts) {
+      const { results: groups } = await env.DB.prepare("SELECT lo, hi, COUNT(*) AS n FROM level_obs GROUP BY lo, hi")
+        .all<{ lo: number; hi: number; n: number }>();
+      dist = {
+        prior: levelPrior(groups).map((x) => Math.round(x * 1e4) / 1e4),
+        observations: groups.reduce((t, g) => t + g.n, 0),
+        counts,
+        rated: est.rated,
+        sumLo: Math.round(est.lo * est.rated * 10),
+        sumHi: Math.round(est.hi * est.rated * 10),
+        bandLo: est.bandLo,
+        bandHi: est.bandHi,
+        labelNum: est.labelNum,
+      };
+    }
     return json({
       match: m,
       estimate: est ? { ...est, ...levelBucket(est) } : null,
+      dist,
       snapshots: snaps.map((s, i) => ({
         ts: s.ts, confirm: s.confirm, average_level: s.average_level,
         changes: trace[i].changes, person: trace[i].person,

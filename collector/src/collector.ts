@@ -1,5 +1,6 @@
 // 수집 1회 실행: (1) 관심 규칙으로 매치 탐색 → (2) 추적 중인 매치 폴링 → 변화 있으면 스냅샷 저장
 
+import { levelObservations, type SnapLevel } from "./estimate.ts";
 import { levelToNum } from "./levels.ts";
 import { PlabClient, PlabNotFoundError, type LevelGraph, type MatchDetail } from "./plab.ts";
 import { CONFIG, deadlineOf, inTimeWindow, pollDue, type HotWindow, type Rule } from "./schedule.ts";
@@ -283,5 +284,22 @@ export async function saveObservation(
     );
   }
   await db.batch(stmts);
+  if (changed) await recordLevelObs(db, d.id, nowIso);
   return changed;
+}
+
+/** 새 스냅샷이 생기면 이 매치의 개인 레벨 관측을 다시 뽑아 쌓음 (이미 있는 건 무시) */
+async function recordLevelObs(db: D1Database, matchId: number, nowIso: string): Promise<void> {
+  const { results } = await db
+    .prepare(
+      `SELECT ts, confirm, average_level, pct_rookie, pct_beginner, pct_amateur, pct_semipro, pct_pro
+       FROM snapshot WHERE match_id = ? ORDER BY ts, id`,
+    )
+    .bind(matchId)
+    .all<SnapLevel & { ts: string }>();
+  const obs = levelObservations(matchId, results);
+  if (!obs.length) return;
+  await db.batch(obs.map((o) =>
+    db.prepare("INSERT OR IGNORE INTO level_obs (match_id, kind, key, lo, hi, ts) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(o.match_id, o.kind, o.key, o.lo, o.hi, nowIso)));
 }

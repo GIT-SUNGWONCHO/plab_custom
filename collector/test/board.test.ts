@@ -224,3 +224,14 @@ test("기본 범위: 2명 아마3 = 2.45~2.6, 10명 = 2.45~2.64", async () => {
   assert.ok(Math.abs(r2[0] - 2.45) < 1e-9 && Math.abs(r2[1] - 2.6) < 1e-9);
   assert.ok(Math.abs(r10[0] - 2.45) < 1e-9 && Math.abs(r10[1] - 2.64) < 1e-9);
 });
+
+test("개인 레벨 관측: 혼자일 때 레벨 + 한 명 들고 남, 사전 분포는 관측 쪽으로", async () => {
+  const { levelObservations, levelPrior } = await import("../src/estimate.ts");
+  const snap = (ts: string, confirm: number, avg: string, amateur = 100, rookie = 0): SnapLevel & { ts: string } =>
+    ({ ts, confirm, average_level: avg, pct_rookie: rookie, pct_beginner: 0, pct_amateur: amateur, pct_semipro: 0, pct_pro: 0 });
+  const obs = levelObservations(7, [snap("t0", 0, "루키", 0), snap("t1", 1, "아마추어3"), snap("t2", 2, "아마추어4")]);
+  assert.deepEqual(obs.map((o) => [o.kind, o.lo, o.hi]), [["solo", 6, 6], ["person", 7, 8]]);
+  const w = levelPrior([{ lo: 8, hi: 8, n: 30 }, { lo: 4, hi: 8, n: 10 }]);
+  assert.ok(Math.abs(w.reduce((a, b) => a + b, 0) - 1) < 1e-9);
+  assert.ok(w[8] > w[6] && w[6] > w[1]);
+});

@@ -70,7 +70,7 @@ const intRange = (lo: number, hi: number): [number, number] => [Math.ceil(lo - E
  * (상세와 레벨그래프를 받는 사이에 사람이 들고 나면 비율이 다른 인원 기준이라 합이 안 맞음.
  *  비율은 정수 %라 인원이 맞으면 round(pct×n/100)의 합은 항상 n)
  */
-function allCounts(s: SnapLevel): Record<Grade, number> | null {
+export function allCounts(s: SnapLevel): Record<Grade, number> | null {
   const n = s.confirm ?? 0;
   if (n <= 0) return null;
   const c = {} as Record<Grade, number>;
@@ -234,4 +234,47 @@ export function levelBucket(e: Estimate): { bucket: number; tier: Tier; narrowed
   if (d > TIER_DELTA * w + EPS) return { bucket, tier: "high", narrowed: true };
   if (d < -TIER_DELTA * w - EPS) return { bucket, tier: "low", narrowed: true };
   return { bucket, tier: "mid", narrowed: e.hi - e.lo <= MID_MAX_WIDTH * w + EPS };
+}
+
+// ---------- 레벨 분포 (사전 분포) ----------
+
+export interface LevelObs { match_id: number; kind: "solo" | "person"; key: string; lo: number; hi: number }
+
+/**
+ * 한 매치의 스냅샷들에서 개인 레벨 관측 뽑기.
+ *   solo: 평가된 신청자가 1명인 시점 → 평균 레벨이 곧 그 사람 레벨
+ *   person: traceLevels가 좁힌 "들어오거나 나간 한 사람"의 레벨 범위
+ */
+export function levelObservations(matchId: number, snaps: (SnapLevel & { ts: string })[]): LevelObs[] {
+  const out: LevelObs[] = [];
+  const tr = traceLevels(snaps);
+  snaps.forEach((s, i) => {
+    const c = allCounts(s);
+    const L = s.average_level === "루키" ? null : levelToNum(s.average_level);
+    if (c && L != null && L >= 1 && (s.confirm ?? 0) - c.rookie === 1) out.push({ match_id: matchId, kind: "solo", key: String(L), lo: L, hi: L });
+    const p = tr[i].person;
+    if (p) out.push({ match_id: matchId, kind: "person", key: s.ts, lo: p.lo, hi: p.hi });
+  });
+  return out;
+}
+
+/**
+ * 관측(레벨 범위별 개수)으로 레벨별 비율 추정 (EM).
+ * 범위로만 아는 관측은 지금 추정한 비율대로 그 범위 안의 레벨에 나눠 담고, 다시 비율을 계산하기를 반복.
+ * 관측이 없는 레벨도 0이 되지 않게 0.5개씩 깔아 둠. 반환: 길이 13 (0=루키는 0)
+ */
+export function levelPrior(groups: { lo: number; hi: number; n: number }[], iterations = 100): number[] {
+  let w = Array.from({ length: 13 }, (_, i) => (i === 0 ? 0 : 1 / 12));
+  for (let it = 0; it < iterations; it++) {
+    const c = Array(13).fill(0.5);
+    c[0] = 0;
+    for (const { lo, hi, n } of groups) {
+      let z = 0;
+      for (let L = lo; L <= hi; L++) z += w[L];
+      for (let L = lo; L <= hi; L++) c[L] += z > 0 ? (n * w[L]) / z : n / (hi - lo + 1);
+    }
+    const tot = c.reduce((a: number, b: number) => a + b, 0);
+    w = c.map((x: number) => x / tot);
+  }
+  return w;
 }

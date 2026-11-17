@@ -180,6 +180,21 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .readout { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap }
 .readout b { color: var(--fg) }
 .chart { display: flex; flex-direction: column; gap: 4px }
+.dist { display: flex; flex-direction: column; gap: 6px }
+.dist h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3); display: flex; align-items: center; gap: 6px }
+.dist .tag { font-size: 10px; font-weight: 600; padding: 0 5px; border-radius: 4px; background: var(--muted); color: var(--fg-3) }
+.dist-mean { margin: 0; font-size: 13px; color: var(--fg-2); word-break: keep-all }
+.dist-mean b { color: var(--fg) }
+.dist-mean .thirds { display: block; font-size: 12px; color: var(--fg-3) }
+.dist-mean .thirds b { color: var(--fg-2); font-weight: 600 }
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px }
+.bars li { display: grid; grid-template-columns: 52px 1fr 42px; gap: 8px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums }
+.bars .bl { color: var(--fg-2) }
+.bars .bt { height: 8px; border-radius: 4px; background: var(--muted); overflow: hidden }
+.bars .bt i { display: block; height: 100%; border-radius: 4px; background: var(--fg-3) }
+.bars .bt i.exact { background: var(--fg-3); opacity: .4 }
+.bars .bv { text-align: right; color: var(--fg-3) }
+.dist .hint { margin: 0; font-size: 11.5px; color: var(--fg-3); word-break: keep-all }
 .chart h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3) }
 .chart svg { display: block; width: 100%; touch-action: none; overflow: visible }
 .chart .grid { stroke: var(--border); stroke-width: 1 }
@@ -582,6 +597,72 @@ function whoHtml(p) {
   return `<span class="who">${parts.join(" · ")}</span>`;
 }
 
+// ---------- 레벨 분포 추정 (확률) ----------
+// 재료(서버): 레벨별 비율(사전 분포, 쌓인 관측으로 계산) · 지금 등급별 인원 · 평균 기록으로 좁힌 점수 합 범위
+// 1) 등급별로 "한 사람의 점수(0.1점 단위)" 확률을 만듦: 아마추어면 아마1~5 비율을 각 레벨 점수칸에 고르게
+// 2) 사람을 한 명씩 더해 "점수 합" 확률을 계산 (합성곱)
+// 3) 점수 합이 실제로 가능한 범위(sumLo~sumHi) 밖은 버리고 다시 합이 1이 되게 → 조건부 확률
+// 4) 평균 = 점수 합 ÷ 인원, 레벨별 인원 = 한 사람씩 "이 사람이 레벨 L일 확률"을 더함
+const GRADE_LV = { beginner: [1, 3], amateur: [4, 8], semipro: [9, 11], pro: [12, 12] };
+function levelDist(d) {
+  const tenth = (L) => [Math.round(SCORE_BANDS[L][0] * 10), Math.round(SCORE_BANDS[L][1] * 10)];
+  const lvOf = (x) => { let L = 1; while (L < 12 && x > tenth(L)[1]) L++; return L; };
+  const person = {};
+  for (const [g, [a, b]] of Object.entries(GRADE_LV)) {
+    let z = 0; for (let L = a; L <= b; L++) z += d.prior[L];
+    const arr = [];
+    for (let L = a; L <= b; L++) { const [lo, hi] = tenth(L); for (let x = lo; x <= hi; x++) arr.push([x, d.prior[L] / z / (hi - lo + 1)]); }
+    person[g] = arr;
+  }
+  const people = Object.keys(GRADE_LV).flatMap((g) => Array(d.counts[g] || 0).fill(g));
+  const sumOf = (list) => {
+    let acc = new Float64Array(1); acc[0] = 1;
+    for (const g of list) {
+      const next = new Float64Array(acc.length + 50);
+      for (let s = 0; s < acc.length; s++) if (acc[s]) for (const [x, p] of person[g]) next[s + x] += acc[s] * p;
+      acc = next;
+    }
+    return acc;
+  };
+  const total = sumOf(people);
+  let Z = 0, mean = 0; const third = [0, 0, 0];
+  for (let s = d.sumLo; s <= d.sumHi && s < total.length; s++) {
+    const p = total[s]; if (!p) continue;
+    Z += p; mean += p * s;
+    const m = s / d.rated / 10;
+    third[Math.min(2, Math.max(0, Math.floor(((m - d.bandLo) / (d.bandHi - d.bandLo)) * 3)))] += p;
+  }
+  if (!Z) return null;
+  const expect = Array(13).fill(0);
+  for (const g of Object.keys(GRADE_LV)) {
+    const k = d.counts[g] || 0; if (!k) continue;
+    const rest = people.slice(); rest.splice(rest.indexOf(g), 1);
+    const R = sumOf(rest);
+    const pre = new Float64Array(R.length + 1); for (let i = 0; i < R.length; i++) pre[i + 1] = pre[i] + R[i];
+    const inRange = (lo, hi) => { lo = Math.max(0, lo); hi = Math.min(R.length - 1, hi); return hi < lo ? 0 : pre[hi + 1] - pre[lo]; };
+    for (const [x, p] of person[g]) expect[lvOf(x)] += (k * p * inRange(d.sumLo - x, d.sumHi - x)) / Z;
+  }
+  return { mean: mean / Z / d.rated / 10, third: third.map((t) => t / Z), expect };
+}
+function distHtml(d) {
+  if (!d) return "";
+  const r = levelDist(d);
+  if (!r) return "";
+  const dec = levelDecimal(r.mean);
+  const meanTxt = dec.prefix + (dec.value == null ? "" : (Math.floor(dec.value * 10 + 1e-9) / 10).toFixed(1));
+  const pct = (x) => `${Math.round(x * 100)}%`;
+  const rows = [];
+  if (d.counts.rookie) rows.push(["루키", d.counts.rookie, true]);
+  for (let L = 1; L <= 12; L++) if (r.expect[L] >= 0.05) rows.push([short(LV[L]), r.expect[L], false]);
+  const max = Math.max(...rows.map((x) => x[1]), 1);
+  return `<section class="dist">
+    <h3>레벨 분포 <span class="tag">추정</span></h3>
+    <p class="dist-mean">예상 평균 <b>${esc(meanTxt)}</b><span class="thirds">${esc(short(LV[d.labelNum] || ""))} 안에서 ${["낮은 쪽", "가운데", "높은 쪽"].map((n, i) => { const top = r.third[i] === Math.max(...r.third); return `${top ? "<b>" : ""}${n} ${pct(r.third[i])}${top ? "</b>" : ""}`; }).join(" · ")}</span></p>
+    <ul class="bars">${rows.map(([name, v, exact]) => `<li><span class="bl">${esc(name)}</span><span class="bt"><i style="width:${Math.max(2, (v / max) * 100)}%"${exact ? ' class="exact"' : ""}></i></span><span class="bv">${exact ? `${v}명` : `${v.toFixed(1)}명`}</span></li>`).join("")}</ul>
+    <p class="hint">등급별 인원과 평균 기록은 실제 값이고, 레벨별 인원은 확률로 나눈 기대값이에요. 개인 레벨 관측 ${d.observations}건으로 만든 레벨 비율을 써요 (쌓일수록 정확해져요).</p>
+  </section>`;
+}
+
 async function openHistory(id) {
   const bg = document.createElement("div");
   bg.className = "sheet-bg";
@@ -605,6 +686,7 @@ async function openHistory(id) {
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명<br>평균 <b>${esc(nowLv || "–")}</b>${nowLv ? esc(range) : ""}</span></div>
     <div class="hist-body">
+    ${distHtml(data.dist)}
     ${pts.length < 2 ? `<p class="note">아직 변화 기록이 ${pts.length ? "1건" : "없어요"}이라 추이를 그릴 수 없어요.</p>` : `
     <div class="chart"><div class="chart-top"><h3>평균 레벨</h3><span class="readout" id="readout" aria-live="polite"></span></div><div id="c-lv"></div></div>
     <div class="chart"><h3>신청 인원</h3><div id="c-n" data-area="1"></div></div>`}
