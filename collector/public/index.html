@@ -190,7 +190,6 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .bh { margin: 0; font-size: 15px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px }
 .bh .tag { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: var(--muted); color: var(--fg-3) }
 .blk .hint { margin: 0; font-size: 11.5px; color: var(--fg-3); word-break: keep-all }
-.okdot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--brand); vertical-align: 0 }
 .lvnow { display: flex; align-items: baseline; gap: 8px }
 .lvnow .big { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums }
 .lvnow .cap { font-size: 12px; color: var(--fg-3) }
@@ -201,33 +200,28 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .gauge .gt b { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--brand); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--fg) }
 .gauge .gl { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center }
 .gauge .gl b { color: var(--fg); font-weight: 700 }
-/* 시안 A */
 .heat { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
-.heat li, .rank li, .gsum li { display: grid; grid-template-columns: 76px 1fr; gap: 8px; align-items: center; font-size: 12px }
+.heat li { display: grid; grid-template-columns: 76px 1fr; gap: 8px; align-items: center; font-size: 12px }
 .gn { color: var(--fg-2); white-space: nowrap }
 .gn b { color: var(--fg); font-weight: 600 }
 .muted { color: var(--fg-3); font-size: 11.5px }
 .cells { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px }
 .cell { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px }
 .cell i { position: absolute; inset: 0 0 16px; border-radius: 5px; background: var(--fg-3) }
-.cell.ok i { background: var(--brand) }
 .cell em { position: relative; height: 26px; line-height: 26px; font-style: normal; font-size: 11px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums }
 .cell small { font-size: 10.5px; color: var(--fg-3) }
-/* 시안 B */
-.okline { margin: 0; font-size: 13px; color: var(--fg-2) }
-.okline b { color: var(--fg) }
-.people { display: flex; flex-wrap: wrap; gap: 5px; align-items: center }
-.pi { position: relative; width: 16px; height: 22px; border-radius: 8px 8px 4px 4px; background: var(--muted); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden }
-.pi i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--brand) }
-.pk { font-size: 11.5px; color: var(--fg-3); margin-left: 4px }
-.gsum { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; color: var(--fg-3) }
-/* 시안 C */
-.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
-.chips { display: flex; flex-wrap: wrap; gap: 4px }
-.chip { padding: 2px 7px; border-radius: 6px; background: var(--muted); color: var(--fg-2); font-size: 11.5px; font-variant-numeric: tabular-nums }
-.chip.ok { background: var(--brand-soft); color: var(--brand-text) }
-.chip.first { font-weight: 700 }
-.chip.first.ok { background: var(--brand); color: #171717 }
+.pchips { display: flex; flex-wrap: wrap; gap: 5px }
+.pc { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; height: 28px; padding: 0 8px; border-radius: 8px; font-size: 12px; font-weight: 600; white-space: nowrap }
+.pc.g-b { background: var(--muted); color: var(--fg-2); box-shadow: inset 0 0 0 1px var(--border) }
+.pc.g-a { background: var(--fg-3); color: var(--surface) }
+.pc.g-s { background: var(--fg-2); color: var(--surface) }
+.pc.g-p { background: var(--fg); color: var(--surface) }
+.pc.g-r { background: transparent; color: var(--fg-3); box-shadow: inset 0 0 0 1px var(--border); font-weight: 500 }
+.pdetail summary { cursor: pointer; list-style: none; font-size: 12.5px; font-weight: 600; color: var(--fg-2); padding: 2px 0 }
+.pdetail summary::-webkit-details-marker { display: none }
+.pdetail summary::after { content: " ▾"; color: var(--fg-3) }
+.pdetail[open] summary::after { content: " ▴" }
+.pdetail[open] { display: flex; flex-direction: column; gap: 10px }
 .chart h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--fg-3) }
 .chart svg { display: block; width: 100%; touch-action: none; overflow: visible }
 .chart .grid { stroke: var(--border); stroke-width: 1 }
@@ -702,44 +696,39 @@ function nowLevelHtml(d, r) {
     </div>`;
 }
 
-// ② 신청자 레벨 (시안 A/B/C)
+// ② 신청자 레벨: 한 사람당 칩 하나로 "예상 구성"
+//   등급마다 레벨별 기대 인원(확률 합)을 실제 인원 수에 맞게 정수로 나눔 (큰 나머지 순으로 1명씩)
+function composition(k, exp) {
+  const fl = exp.map((e) => Math.floor(e + 1e-9));
+  let left = k - fl.reduce((a, b) => a + b, 0);
+  exp.map((e, i) => [e - fl[i], i]).sort((x, y) => y[0] - x[0]).forEach(([, i]) => { if (left > 0) { fl[i]++; left--; } });
+  return fl;
+}
+const GRADE_CLASS = { beginner: "g-b", amateur: "g-a", semipro: "g-s", pro: "g-p" };
 function peopleHtml(d, r) {
   if (!r) return d && d.counts.rookie ? `<p class="note">루키 ${d.counts.rookie}명 (평균에서 빠져요)</p>` : "";
-  const view = window.DIST_VIEW || "A";
   const grades = Object.entries(GRADE_LV).filter(([g]) => d.counts[g] > 0);
+  const chips = [];
+  for (const [g, [a, b]] of grades) {
+    const lv = []; for (let l = a; l <= b; l++) lv.push(l);
+    const cnt = composition(d.counts[g], lv.map((l) => r.expect[l]));
+    lv.forEach((l, i) => { for (let j = 0; j < cnt[i]; j++) chips.push(`<span class="pc ${GRADE_CLASS[g]}">${esc(short(LV[l]))}</span>`); });
+  }
+  for (let j = 0; j < (d.counts.rookie || 0); j++) chips.push(`<span class="pc g-r">루키</span>`);
   const share = (g, l) => r.expect[l] / d.counts[g];
-  const rookie = d.counts.rookie ? `<li class="rk"><span class="gn">루키 <b>${d.counts.rookie}명</b></span><span class="muted">평균에서 빠져요</span></li>` : "";
-  if (view === "A") {
-    // 시안 A: 등급마다 세부 레벨 칸(같은 너비), 칸 진하기 = 확률, 아마3 이하 칸은 라임
-    return `<ul class="heat">${grades.map(([g, [a, b]]) => {
-      const cells = []; for (let l = a; l <= b; l++) cells.push(l);
-      return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span class="cells">${cells.map((l) => {
-        const p = share(g, l);
-        return `<span class="cell${l <= 6 ? " ok" : ""}"><i style="opacity:${(0.08 + 0.92 * Math.min(1, p / 0.6)).toFixed(2)}"></i><em>${Math.round(p * 100)}%</em><small>${esc(short(LV[l]).replace(/^(비기너|아마|세미)/, ""))}</small></span>`;
-      }).join("")}</span></li>`;
-    }).join("")}${rookie}</ul>
-    <p class="hint">칸이 진할수록 그 레벨일 확률이 높아요. <span class="okdot"></span> 아마3 이하</p>`;
-  }
-  if (view === "B") {
-    // 시안 B: 내 레벨 기준 — 사람 아이콘(실제 인원), 아마3 이하일 기대 인원만큼 라임
-    let ok = 0; for (let l = 1; l <= 6; l++) ok += r.expect[l];
-    const n = d.rated; const icons = [];
-    for (let i = 0; i < n; i++) icons.push(Math.max(0, Math.min(1, ok - i)));
-    return `<p class="okline">평가된 ${n}명 중 아마3 이하 <b>약 ${ok.toFixed(1)}명</b></p>
-      <div class="people">${icons.map((f) => `<span class="pi"><i style="height:${(f * 100).toFixed(0)}%"></i></span>`).join("")}${d.counts.rookie ? `<span class="pk">+ 루키 ${d.counts.rookie}</span>` : ""}</div>
-      <ul class="gsum">${grades.map(([g, [a, b]]) => {
-        let gok = 0; for (let l = a; l <= Math.min(b, 6); l++) gok += share(g, l);
-        let best = a; for (let l = a; l <= b; l++) if (share(g, l) > share(g, best)) best = l;
-        return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span>아마3 이하 ${Math.round(gok * 100)}% · 가장 유력 ${esc(short(LV[best]))}</span></li>`;
-      }).join("")}</ul>`;
-  }
-  // 시안 C: 등급마다 유력한 레벨 순위 (확률 순 칩 3개)
-  return `<ul class="rank">${grades.map(([g, [a, b]]) => {
-    const ls = []; for (let l = a; l <= b; l++) ls.push(l);
-    ls.sort((x, y) => share(g, y) - share(g, x));
-    return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span class="chips">${ls.slice(0, 3).map((l, i) => `<span class="chip${l <= 6 ? " ok" : ""}${i === 0 ? " first" : ""}">${esc(short(LV[l]))} ${Math.round(share(g, l) * 100)}%</span>`).join("")}</span></li>`;
-  }).join("")}${rookie}</ul>
-  <p class="hint">한 사람이 그 레벨일 확률이 높은 순이에요.</p>`;
+  const detail = grades.map(([g, [a, b]]) => {
+    const cells = []; for (let l = a; l <= b; l++) cells.push(l);
+    return `<li><span class="gn">${GRADE_KO_SHORT[g]} <b>${d.counts[g]}명</b></span><span class="cells">${cells.map((l) => {
+      const p = share(g, l);
+      return `<span class="cell"><i style="opacity:${(0.08 + 0.92 * Math.min(1, p / 0.6)).toFixed(2)}"></i><em>${Math.round(p * 100)}%</em><small>${esc(short(LV[l]).replace(/^(비기너|아마|세미)/, ""))}</small></span>`;
+    }).join("")}</span></li>`;
+  }).join("");
+  return `<div class="pchips">${chips.join("")}</div>
+    <p class="hint">한 칸이 한 사람이에요. 확률로 가장 그럴듯하게 나눈 예상 구성이라 실제와 다를 수 있어요.${d.counts.rookie ? " 루키는 평균에서 빠져요." : ""}</p>
+    <details class="pdetail"><summary>레벨별 확률 자세히</summary>
+      <ul class="heat">${detail}</ul>
+      <p class="hint">각 사람이 그 레벨일 확률이에요. 칸이 진할수록 유력해요.</p>
+    </details>`;
 }
 
 async function openHistory(id) {
