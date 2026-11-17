@@ -115,10 +115,15 @@ ul.list { list-style: none; margin: 0; padding: 0 }
 .tier.high { color: var(--red) }
 .tier.low { color: var(--brand-text) }
 .ppl { font-size: 13px; color: var(--fg-3); font-variant-numeric: tabular-nums }
-.ppl.thin { color: var(--fg-3); opacity: .75 }
-.ppl.enough { color: var(--fg); font-weight: 700 }
-.ppl.hot { color: var(--red); font-weight: 700 }
-.row.full .ppl { color: var(--fg-3); font-weight: 400; opacity: 1 }
+.ppl { display: flex; align-items: center; gap: 8px }
+/* 신청 인원 막대: 1~9명 회색 · 10~14명 초록 · 15명+ 빨강(마감임박과 같은 색). 글자는 굵게 하지 않음 */
+.ppl .bar { flex: 0 0 64px; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden }
+.ppl .bar i { display: block; height: 100%; background: var(--fg-3) }
+.ppl.enough .bar i { background: var(--brand-text) }
+.ppl.hot { color: var(--red) }
+.ppl.hot .bar i { background: var(--red) }
+.row.full .ppl { color: var(--fg-3) }
+.row.full .ppl .bar i { background: var(--fg-3) }
 .status { text-align: center; min-width: 72px; height: 34px; line-height: 34px; padding: 0 10px; border-radius: 10px; font-size: 13px; font-weight: 700; white-space: nowrap }
 .status.available { background: var(--brand-soft); color: var(--brand-text) }
 .status.hurry { background: var(--red-strong); color: #ffffff }
@@ -308,7 +313,7 @@ function rowHtml(it) {
     <div class="body">
       <div class="title">${esc(it.title)}</div>
       <div class="tags">${tags}</div>
-      <div class="ppl${it.closingSoon ? " hot" : it.enoughPlayers ? " enough" : " thin"}">신청 ${it.confirm}/${it.max ?? "?"}명</div>
+      <div class="ppl${it.closingSoon ? " hot" : it.enoughPlayers ? " enough" : ""}"><span class="bar" aria-hidden="true"><i style="width:${it.max ? Math.min(100, Math.round((it.confirm / it.max) * 100)) : 0}%"></i></span>신청 ${it.confirm}/${it.max ?? "?"}명</div>
     </div>
     <div class="status ${status[0]}">${status[1]}</div></a></li>`;
 }
@@ -348,7 +353,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>레벨 칩 누르기</b> 그 매치의 평균 레벨·신청 인원 추이를 그래프로 보여줘요. 그래프를 누르거나 밀면 그 시점 값이 나와요. 변화 기록에는 들어오고 나간 사람의 등급이 나오고, 평균 변화로 계산이 되면 세부 레벨 추정(예: 아마4~5)도 붙어요.</p>
   <h4>매치 카드</h4>
   <p><b>마감임박</b> 신청 15명 이상.</p>
-  <p><b>신청 인원 색</b> 연한 회색 = 1~9명 (한 명만 들어와도 평균이 크게 흔들려요) · 진하게 = 10~14명 · 빨강 = 15명 이상(마감임박).</p>
+  <p><b>신청 인원 막대</b> 회색 = 1~9명 (한 명만 들어와도 평균이 크게 흔들려요) · 초록 = 10~14명 · 빨강 = 15명 이상(마감임박).</p>
   <p><b>마감 3시간 전</b> 신청 마감(경기 10분 전)까지 남은 시간. 마감 24시간 이내일 때만 보여요.</p>
   <p><b>AI리포트</b> 플랩이 경기 후 AI 분석 리포트를 주는 매치.</p>
   <h4>정렬</h4>
