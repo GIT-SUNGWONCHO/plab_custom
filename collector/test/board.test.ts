@@ -93,7 +93,7 @@ test("거르기: 날짜·시간대, 레벨 제한 매치, 여자 매치", () => 
   assert.deepEqual(ids, [1, 3, 9, 10]);
 });
 
-test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나머지는 마감임박 → 레벨 칸 → 6vs6 → 10명 이상 → 시각", () => {
+test("정렬: 내 레벨 이하 먼저 → 각각 시각 순 → 같은 시각이면 레벨 칸 → 6vs6 → 10명 이상 (마감임박은 순서에 영향 없음)", () => {
   const S = new Map<number, SnapLevel[]>([
     [1, [snap("아마추어3", { a: 10 })]], // 아마3 중간, 6vs6
     [2, [snap("아마추어3", { a: 10 }), snap("아마추어4", { a: 11 }), snap("아마추어3", { a: 10 })]], // 높은 3
@@ -124,15 +124,13 @@ test("정렬: 내 레벨 이하(그 안은 마감임박 → 시각 순) → 나�
   assert.equal(board.find((x) => x.id === 2)!.atOrBelowMine, true); // 아마3이면 높은 쪽이어도 초록
   assert.equal(board.find((x) => x.id === 9)!.atOrBelowMine, true);
 
-  // 마감임박(신청 15명 이상)은 내 레벨 이하 그룹 안에서 먼저
-  rows.find((r) => r.id === 2)!.confirm = 15; // 높은 3도 초록 → 마감임박끼리 레벨 칸 순(6 다음)
-  rows.find((r) => r.id === 6)!.confirm = 16; // 아마3 중간, 5vs5
-  rows.find((r) => r.id === 1)!.apply_status = "hurry"; // 플랩 hurry(6명+)는 무시
+  // 마감임박(신청 15명 이상)이 돼도 순서는 그대로 (빨간 표시로만 구분)
+  rows.find((r) => r.id === 2)!.confirm = 15;
+  rows.find((r) => r.id === 6)!.confirm = 16;
+  rows.find((r) => r.id === 1)!.apply_status = "hurry";
   const b2 = buildBoard(rows, S, F);
-  assert.deepEqual(b2.map((x) => x.id), [6, 2, 9, 3, 4, 7, 5, 1, 8]);
-
-  // 내 레벨을 아마4로 바꿔도 마감임박끼리 레벨 낮은 6번 다음 2번
-  assert.deepEqual(buildBoard(rows, S, { ...F, myLevel: 7 }).map((x) => x.id).slice(0, 2), [6, 2]);
+  assert.deepEqual(b2.map((x) => x.id), [9, 3, 4, 7, 5, 6, 2, 1, 8]);
+  assert.equal(b2.find((x) => x.id === 6)!.closingSoon, true);
   assert.equal(b2.find((x) => x.id === 1)!.closingSoon, false);
   assert.equal(b2.find((x) => x.id === 7)!.closingSoon, false); // 마감은 마감임박 아님
   assert.equal(board.find((x) => x.id === 3)!.estimate?.label, "아마추어2");

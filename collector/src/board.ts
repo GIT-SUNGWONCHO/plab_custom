@@ -132,7 +132,6 @@ export function buildBoard(
   return items.sort(
     (a, b) =>
       Number(b.atOrBelowMine) - Number(a.atOrBelowMine) ||
-      Number(b.closingSoon) - Number(a.closingSoon) ||
       a.time.localeCompare(b.time) ||
       (a.bucket ?? 99) - (b.bucket ?? 99) ||
       b.preference - a.preference ||

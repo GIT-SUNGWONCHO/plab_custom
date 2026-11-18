@@ -98,6 +98,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .section { font-size: 13px; font-weight: 700; color: var(--fg-3); padding-block: 18px 6px }
 
 ul.list { list-style: none; margin: 0; padding: 0 }
+.grp { padding: 16px 0 4px; font-size: 12px; font-weight: 600; color: var(--fg-3); display: flex; gap: 6px; align-items: baseline }
+.grp span { font-weight: 400; opacity: .8 }
 .row { display: grid; grid-template-columns: 72px 1fr auto; gap: 12px; align-items: center; padding-block: 14px; border-bottom: 1px solid var(--border);
   text-decoration: none; color: inherit }
 .row:active { background: var(--muted) }
@@ -405,6 +407,15 @@ function rowHtml(it) {
     ${it.full ? `<span class="status full">마감</span>` : `<a class="status ${status[0]}" href="${esc(it.url)}" target="_blank" rel="noopener" aria-label="플랩에서 ${status[1]} 매치 열기">${status[1]}<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2h6v6M10 2 3 9"/></svg></a>`}</div></li>`;
 }
 
+// 추천순: 「내 레벨 이하」와 「그 외」 구간 제목을 얇게 넣음 (시간순은 제목 없이)
+function listHtml(items) {
+  if (prefs.sort === "time") return items.map(rowHtml).join("");
+  const mine = items.filter((x) => x.atOrBelowMine), rest = items.filter((x) => !x.atOrBelowMine);
+  const head = (t, n) => `<li class="grp" aria-hidden="true">${t}<span>${n}</span></li>`;
+  return (mine.length ? head(`${esc(short(LV[prefs.my] || "아마추어3"))} 이하`, mine.length) + mine.map(rowHtml).join("") : "")
+    + (rest.length ? head("그 외", rest.length) + rest.map(rowHtml).join("") : "");
+}
+
 let last = null;
 // 유력 평균(점)이 레벨 구간 3칸 중 어디에 있는지: 0 낮음 · 1 가운데 · 2 높음
 // 칸 경계는 화면 표기(아마3.x의 x, 내림)에 맞춤: .0~.2 낮음 · .3~.6 가운데 · .7~.9 높음
@@ -435,7 +446,7 @@ function addProbTiers(data) {
   }
   // 추천순: 서버와 같은 순서인데, 같은 시각 안의 레벨 칸만 확률 기준으로
   data.items.sort((a, b) =>
-    Number(b.atOrBelowMine) - Number(a.atOrBelowMine) || Number(b.closingSoon) - Number(a.closingSoon) ||
+    Number(b.atOrBelowMine) - Number(a.atOrBelowMine) ||
     a.time.localeCompare(b.time) || a.pbucket - b.pbucket || Number(b.is6v6) - Number(a.is6v6) ||
     Number(b.enoughPlayers) - Number(a.enoughPlayers) || a.id - b.id);
 }
@@ -459,7 +470,7 @@ function render(data) {
   $("main").innerHTML =
     (prefs.introSeen ? "" : INTRO.replace("</ol>", IS_IOS && !STANDALONE ? `<li><b>아이폰</b>은 사파리 공유 버튼 → <b>홈 화면에 추가</b>를 하면 앱처럼 쓰고 알림도 받을 수 있어요.</li></ol>` : "</ol>")) +
     HELP +
-    `<ul class="list">${items.map(rowHtml).join("")}</ul>`;
+    `<ul class="list">${listHtml(items)}</ul>`;
   const h = $("help"); h.open = helpOpen; h.ontoggle = () => { helpOpen = h.open; };
   const ok = $("intro-ok"); if (ok) ok.onclick = () => { prefs.introSeen = true; save(); $("intro").remove(); };
 }
@@ -490,7 +501,7 @@ const HELP = `<details class="help" id="help"><summary>정렬 순서 · 보는 �
   <p><b>마감 3시간 전</b> 신청 마감(경기 10분 전)까지 남은 시간. 마감 24시간 이내일 때만 보여요.</p>
   <p><b>AI리포트</b> 플랩이 경기 후 AI 분석 리포트를 주는 매치.</p>
   <h4>정렬</h4>
-  <p><b>추천순</b> 평균 아마3 이하(초록) 매치 먼저, 그다음 나머지. 각각 마감임박 → 이른 시각 순 (같은 시각이면 레벨 낮은 순 → 6vs6 → 신청 10명 이상).</p>
+  <p><b>추천순</b> 평균 아마3 이하(초록) 매치 먼저, 그다음 나머지. 각각 이른 시각 순 (같은 시각이면 레벨 낮은 순 → 6vs6 → 신청 10명 이상).</p>
   <p><b>시간순</b> 시작 시각 순.</p>
   <h4>필터</h4>
   <p><b>인원 ▾</b> 1명+ / 10명+ 고르면 신청 인원이 그 이상인 매치만 보여요.</p>
