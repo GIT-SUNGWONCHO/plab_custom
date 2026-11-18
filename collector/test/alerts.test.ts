@@ -64,7 +64,7 @@ test("초록 + 10명 이상 → '모임' 알림 한 번, 초록 아님·10명 �
   assert.equal(sent[0].topic, TOPIC);
   assert.equal(sent[0].title, "12명 모임 · 11/22(일) 12:00 · 아마3");
   assert.equal(sent[0].body, "구장 1\n12/18명 · 6vs6");
-  assert.equal(sent[0].click, "https://plabfootball.com/match/1/");
+  assert.equal(sent[0].click, "/?m=1"); // 알림 누르면 우리 앱의 레벨 상세
   // 다시 돌려도 같은 알림은 안 감
   await runAlerts(asD1(db), ntfy, new Date(NOW.getTime() + 60_000));
   assert.equal(sent.length, 1);
@@ -90,7 +90,7 @@ test("구독 조건(6vs6만·AI리포트만)이 알림에도 적용", async () =
   addMatch(2, { confirm: 12, avg: "아마추어3", features: [] });
   addMatch(3, { confirm: 12, avg: "아마추어3", features: ["ai_report"] });
   await runAlerts(asD1(db), ntfy, NOW);
-  assert.deepEqual(sent.map((m) => m.click), ["https://plabfootball.com/match/3/"]);
+  assert.deepEqual(sent.map((m) => m.click), ["/?m=3"]);
 });
 
 test("밤에는 안 보내고 아침에 보냄, 실패하면 다음에 다시", async () => {

@@ -200,7 +200,8 @@ export async function runAlerts(db: D1Database, deliver: Deliver, now = new Date
         .bind(sub.topic, item.id, kind, nowIso).run();
       if (!claim.meta.changes) continue;
       usedForSub++;
-      const ok = await deliver(sub.topic, { ...messageFor(item, kind), click: item.url, tag: `${item.id}-${kind}` }).catch(() => false);
+      // 알림을 누르면 플랩레이더가 열리면서 그 매치의 레벨 상세 팝업 (/?m=매치번호)
+      const ok = await deliver(sub.topic, { ...messageFor(item, kind), click: `/?m=${item.id}`, tag: `${item.id}-${kind}` }).catch(() => false);
       if (ok) result.sent++;
       else {
         result.failed++;

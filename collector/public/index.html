@@ -194,6 +194,7 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .hist-log[open] summary::after { content: " ▴" }
 .hist-head .sub { font-size: 13px; color: var(--fg-3); word-break: keep-all }
 .hist-head .sub b { color: var(--fg); font-weight: 700 }
+.hist-head .plab-link { color: var(--blue); font-weight: 600; text-decoration: none; white-space: nowrap }
 .chart-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 18px }
 .readout { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap }
 .readout b { color: var(--fg) }
@@ -950,7 +951,7 @@ async function openHistory(id) {
   const bc = dr ? displayComposition(data.dist, dr) : null;
   sheet.innerHTML = `
     <div class="hist-head"><h2 id="hist-title">${esc(m.title)}</h2><div class="head-btns"><button class="x-btn" id="hist-share" type="button" aria-label="이 매치 공유"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button><button class="x-btn" id="hist-x" type="button" aria-label="닫기"><svg class="ic" style="width:16px;height:16px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명</span></div>
+      <span class="sub">${esc(fmtDate(m.kst_date))} ${esc(m.kst_time)} · 신청 ${m.confirm ?? 0}/${m.max_players ?? "?"}명<br><a class="plab-link" href="https://plabfootball.com/match/${m.id}/" target="_blank" rel="noopener">플랩에서 보기 ↗</a></span></div>
     <div class="hist-body">
     <section class="blk"><h3 class="bh">지금 레벨 <span class="tag">추정</span></h3>${nowLevelHtml(data.dist, dr, bc)}</section>
     ${dr || (data.dist && data.dist.counts.rookie) ? `<section class="blk"><h3 class="bh">신청자 레벨 <span class="tag">추정</span></h3>${peopleHtml(data.dist, dr, bc)}</section>` : ""}

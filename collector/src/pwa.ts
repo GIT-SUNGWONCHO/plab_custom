@@ -23,10 +23,20 @@ self.addEventListener("push", (e) => {
 });
 
 // 알림 누르기 → 매치 페이지 열기
+// 알림 누르기 → 플랩레이더에서 그 매치 레벨 상세 팝업 (/?m=매치번호)
+//   이미 열린 창이 있으면 그 창으로 가서 열고, 없으면 새로 엶
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || "/";
-  e.waitUntil(self.clients.openWindow(url));
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", self.location.origin).href;
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const w of wins) {
+      if (new URL(w.url).origin !== self.location.origin) continue;
+      try { await w.focus(); } catch (err) {}
+      try { await w.navigate(url); return; } catch (err) {}
+    }
+    await self.clients.openWindow(url);
+  })());
 });
 `;
 
