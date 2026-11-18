@@ -148,6 +148,8 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .empty { padding: 40px 0; text-align: center; color: var(--fg-3); word-break: keep-all }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
 .icon-btn { position: relative }
+.icon-btn.spin .ic { animation: spin .7s linear infinite }
+@keyframes spin { to { transform: rotate(360deg) } }
 .icon-btn.on { background: var(--blue-soft); color: var(--blue) }
 .icon-btn.on::after { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--blue) }
 .sheet-bg { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; justify-content: center }
@@ -348,7 +350,7 @@ function checkBuild(res) {
   location.reload();
 }
 async function api(path) {
-  const res = await fetch(path);
+  const res = await fetch(path, { cache: "no-store" }); // 늘 최신 값
   checkBuild(res);
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
   return res.json();
@@ -528,12 +530,27 @@ $("dates").addEventListener("click", (e) => { const b = e.target.closest(".date"
 $("from").onchange = (e) => { prefs.from = e.target.value; if (prefs.from > prefs.to) { prefs.to = prefs.from; $("to").value = prefs.to; } save(); load(); };
 $("to").onchange = (e) => { prefs.to = e.target.value; if (prefs.to < prefs.from) { prefs.from = prefs.to; $("from").value = prefs.from; } save(); load(); };
 $("sort").onchange = (e) => { prefs.sort = e.target.value; save(); if (last) render(last); };
+// 인원 드롭다운: 펼쳐서 고를 땐 첫 항목을 '전체'로, 닫혀 있을 땐 버튼에 '인원'
+{
+  const sel = $("minp"), first = sel.options[0];
+  const openLabel = () => { first.text = "전체"; };
+  const closedLabel = () => { first.text = "인원"; };
+  for (const ev of ["pointerdown", "touchstart", "mousedown", "focus"]) sel.addEventListener(ev, openLabel, { passive: true });
+  for (const ev of ["blur", "change"]) sel.addEventListener(ev, closedLabel);
+}
 $("minp").onchange = (e) => { prefs.minPeople = Number(e.target.value); $("minp-pill").classList.toggle("on", prefs.minPeople > 0); save(); if (last) render(last); };
 $("tf").onclick = () => { prefs.onlyTF = !prefs.onlyTF; $("tf").setAttribute("aria-pressed", String(prefs.onlyTF)); save(); if (last) render(last); };
 $("v6").onclick = () => { prefs.only6 = !prefs.only6; $("v6").setAttribute("aria-pressed", String(prefs.only6)); save(); if (last) render(last); };
 $("nofull").onclick = () => { prefs.hideFull = !prefs.hideFull; $("nofull").setAttribute("aria-pressed", String(prefs.hideFull)); save(); if (last) render(last); };
 $("ai").onclick = () => { prefs.aiOnly = !prefs.aiOnly; $("ai").setAttribute("aria-pressed", String(prefs.aiOnly)); save(); if (last) render(last); };
-$("reload").onclick = load;
+// 새로고침: 아이콘이 도는 동안 불러오고, 끝나면 안내
+$("reload").onclick = async () => {
+  const b = $("reload"); if (b.classList.contains("spin")) return;
+  b.classList.add("spin");
+  const t0 = Date.now();
+  await load();
+  setTimeout(() => { b.classList.remove("spin"); toast(last ? `새로고침했어요 · ${ago(last.updated_at)}` : "새로고침했어요"); }, Math.max(0, 500 - (Date.now() - t0)));
+};
 // 빈 화면의 '필터 끄기': AI·6vs6·더에프·인원·마감제외를 끔 (날짜·시간대는 유지)
 function clearFilters() {
   Object.assign(prefs, { aiOnly: false, only6: false, onlyTF: false, minPeople: 0, hideFull: false });

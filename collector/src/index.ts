@@ -26,7 +26,8 @@ export function vapidOf(env: Env): VapidKeys | null {
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8" }, // 화면과 같은 주소에서만 쓰므로 CORS 없음
+    // 화면과 같은 주소에서만 쓰므로 CORS 없음. 늘 최신 값을 보도록 캐시 금지
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
