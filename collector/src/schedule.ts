@@ -4,7 +4,7 @@ import { HOUR, MINUTE } from "./time.ts";
 
 export const CONFIG = {
   /** 오늘(KST)부터 며칠 앞까지 탐색할지 */
-  discoveryHorizonDays: 14,
+  discoveryHorizonDays: 21,
   /** 같은 규칙·날짜를 다시 탐색하는 간격 */
   discoveryIntervalMs: 15 * MINUTE,
   /** 한 번 실행에서 쓸 플랩 요청 상한 (Workers 무료 플랜 subrequest 50개 제한 아래로) */

@@ -124,9 +124,9 @@ describe("수집기", () => {
     assert.deepEqual(r.errors, []);
     assert.equal(r.discovered, 3);
     assert.deepEqual(db.rows("SELECT id FROM match ORDER BY id").map((x) => x.id), [2, 3, 4]);
-    // 토요일 2개(11/14, 11/21)만 목록 조회, 구장 필터 포함
+    // 토요일 3개(11/14, 11/21, 11/28)만 목록 조회 (21일 안), 구장 필터 포함
     const lists = plab.calls.filter((c) => c.startsWith("/api/v3/social-matches/?"));
-    assert.equal(lists.length, 2);
+    assert.equal(lists.length, 3); // 앞으로 21일 안의 해당 요일 3번
     assert.ok(lists.every((c) => c.includes("stadium_group_id=3")));
     assert.deepEqual([...plab.userAgents], ["plab-radar/0.1 (personal use)"]);
   });
