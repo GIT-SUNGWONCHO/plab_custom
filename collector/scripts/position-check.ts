@@ -10,7 +10,7 @@
 //   node scripts/position-check.ts snapshots.json            → 결과 출력
 //   node scripts/position-check.ts snapshots.json --append   → docs/SCORES.md 표에 한 줄 추가
 
-import { appendFileSync, readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import * as N from "../src/estimate.ts";
 
 type Snap = N.SnapLevel & { match_id: number; ts: string };
@@ -156,6 +156,12 @@ console.log(`채점 시점 ${n}개 (실제 높음 ${nUp} · 낮음 ${nDown}) · 
 for (const [k, s] of Object.entries(score)) console.log(`${k.padEnd(8)} 정확도 ${pct(s.hit, n).padStart(4)} | 높음 맞힘 ${s.upHit}/${nUp} | 낮음 맞힘 ${s.downHit}/${nDown}`);
 if (process.argv.includes("--append")) {
   const cells = Object.values(score).map((s) => `${pct(s.hit, n)} (▲${s.upHit}/${nUp} ▼${s.downHit}/${nDown})`);
-  appendFileSync(new URL("../../docs/SCORES.md", import.meta.url), `| ${kst} | ${by.size} | ${obs.length} | ${n} | ${cells.join(" | ")} |\n`);
+  // 표의 마지막 줄 바로 뒤에 넣음 (파일 끝에 붙이면 아래 '실제 참가 매치' 칸 뒤로 가서 표 밖으로 나감)
+  const file = new URL("../../docs/SCORES.md", import.meta.url);
+  const lines = readFileSync(file, "utf8").split("\n");
+  let lastRow = -1; lines.forEach((l, i) => { if (/^\| \d{4}-\d{2}-\d{2} \|/.test(l)) lastRow = i; });
+  const row = `| ${kst} | ${by.size} | ${obs.length} | ${n} | ${cells.join(" | ")} |`;
+  if (lastRow >= 0) lines.splice(lastRow + 1, 0, row); else lines.push(row);
+  writeFileSync(file, lines.join("\n"));
   console.log("docs/SCORES.md에 추가했어요.");
 }
