@@ -131,6 +131,14 @@ describe("수집기", () => {
     assert.deepEqual([...plab.userAgents], ["plab-radar/0.1 (personal use)"]);
   });
 
+  test("추가 날짜(extra_dates)는 요일 규칙 밖이어도 수집", async () => {
+    db.db.prepare("INSERT INTO state (key, value) VALUES ('extra_dates', ?)").run(JSON.stringify(["2026-11-20"])); // 금요일
+    await run(T0);
+    const lists = plab.calls.filter((c) => c.startsWith("/api/v3/social-matches/?"));
+    assert.ok(lists.some((c) => c.includes("date=2026-11-20")));
+    assert.ok(!lists.some((c) => c.includes("date=2026-11-19"))); // 목록에 없는 평일은 그대로 제외
+  });
+
   test("첫 폴링에서 상세·레벨을 match와 snapshot에 저장", async () => {
     const r = await run(T0);
     assert.equal(r.polled, 3);

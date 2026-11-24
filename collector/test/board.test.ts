@@ -128,7 +128,7 @@ test("정렬: 내 레벨 이하 먼저 → 각각 시각 순 → 같은 시각�
   rows.find((r) => r.id === 2)!.confirm = 15;
   rows.find((r) => r.id === 6)!.confirm = 16;
   rows.find((r) => r.id === 1)!.apply_status = "hurry";
-  const b2 = buildBoard(rows, S, F);
+  const b2 = buildBoard(rows, S, F, Date.parse("2026-11-20T03:00:00Z")); // 경기 전 시각으로 고정 (마감 전이어야 마감임박)
   assert.deepEqual(b2.map((x) => x.id), [9, 3, 4, 7, 5, 6, 2, 1, 8]);
   assert.equal(b2.find((x) => x.id === 6)!.closingSoon, true);
   assert.equal(b2.find((x) => x.id === 1)!.closingSoon, false);

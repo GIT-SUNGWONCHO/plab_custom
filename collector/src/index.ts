@@ -73,6 +73,7 @@ export async function handleFetch(
   env: Env,
   client = new PlabClient(),
   deliver: Deliver = makeDeliver(env.DB, vapidOf(env)),
+  now: Date = new Date(), // 테스트에서 시각 고정용
 ): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -195,7 +196,7 @@ export async function handleFetch(
       await baselineAlerts(env.DB, {
         topic: b.topic, date: b.date, time_from: b.from, time_to: b.to,
         only6: b.only6 ? 1 : 0, only_ai: b.onlyAI ? 1 : 0, only_tf: b.onlyTF ? 1 : 0,
-      });
+      }, now);
       return json({ ok: true });
     }
     return json({ error: "method" }, 405);

@@ -66,10 +66,19 @@ export async function runCollector(db: D1Database, client: PlabClient, now = new
     .prepare("SELECT key, value FROM state WHERE key LIKE 'discovered:%'")
     .all<{ key: string; value: string }>();
   const lastDiscovered = new Map(stateRows.map((r) => [r.key, r.value]));
+  // 요일 규칙 밖의 날짜도 수집하고 싶을 때: state 'extra_dates' = ["2026-12-04", ...] (규칙의 구장·시간대로 수집)
+  let extraDates: string[] = [];
+  try {
+    const raw = await db.prepare("SELECT value FROM state WHERE key = 'extra_dates'").first<string>("value");
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) extraDates = parsed.filter((d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d));
+  } catch {
+    result.errors.push("extra_dates 형식 오류");
+  }
   for (const rule of rules) {
     if (rule.stadiumGroupIds.length === 0) continue;
     for (const date of dates) {
-      if (!rule.weekdays.includes(weekdayOf(date))) continue;
+      if (!rule.weekdays.includes(weekdayOf(date)) && !extraDates.includes(date)) continue;
       if (budgetLeft() < 10) break; // 폴링 몫은 남겨둠
       const key = `discovered:${rule.id}:${date}`;
       const last = lastDiscovered.get(key);
